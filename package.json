@@ -7,9 +7,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "npx tsc",
     "test": "node --no-warnings --experimental-vm-modules node_modules/.bin/jest",
-    "prepublish": "tsc"
+    "prepublish": "npx tsc"
   },
   "author": "Sam Cohen",
   "description": "Algorithms for visualizing structured text",
@@ -24,7 +24,8 @@
     "pixelmatch": "^7.1.0",
     "sharp": "^0.34.2",
     "ts-jest": "^29.3.4",
-    "tsx": "^4.20.4"
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2"
   },
   "dependencies": {
     "@sbcohen/containers": "^1.0.1"
