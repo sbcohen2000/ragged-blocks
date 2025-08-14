@@ -18,6 +18,7 @@
     "type": "git",
     "url": "git+https://github.com/sbcohen2000/ragged-blocks.git"
   },
+  "license": "MIT",
   "devDependencies": {
     "jest": "^29.7.0",
     "pixelmatch": "^7.1.0",
