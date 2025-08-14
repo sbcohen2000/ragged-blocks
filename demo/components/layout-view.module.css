@@ -1,0 +1,109 @@
+@font-face {
+    font-family: "Inconsolata-Medium";
+    src: url("../Inconsolata-Medium.woff2") format("woff2");
+}
+
+.upperHalf {
+    display: flex;
+    flex-direction: row;
+}
+
+.infoContainer {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: baseline;
+    column-gap: 4px;
+}
+
+.label {
+    font-size: 0.7em;
+    font-family: sans-serif;
+}
+
+.layoutContainer {
+    margin-right: 20px;
+}
+
+.buttonColumn {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.stack {
+    display: grid;
+}
+
+.stack div {
+    grid-area: 1 / 1;
+}
+
+.errMsg {
+    background-color: peachpuff;
+    opacity: 0.9;
+    font-family: sans-serif;
+    font-size: 0.7em;
+    z-index: 1;
+}
+
+.throbber {
+    align-self: center;
+    justify-self: center;
+
+    width: 10px;
+    height: 10px;
+    border-radius: 10px;
+    scale: 0;
+
+    background-color: white;
+
+    animation-name: startup, throb;
+    animation-delay: 0.5s, 1s;
+    animation-iteration-count: 1, infinite;
+    animation-duration: 0.5s, 0.5s;
+    animation-timing-function: linear, ease-out;
+    animation-direction: normal, alternate;
+}
+
+@keyframes startup {
+    from {
+        scale: 0;
+    }
+
+    to {
+        scale: 1;
+    }
+}
+
+@keyframes throb {
+    from {
+        scale: 1 1;
+    }
+
+    to {
+        scale: 2 2;
+    }
+}
+
+.lastGoodResult {
+    opacity: 0.7;
+    animation-duration: 2s;
+    animation-name: fade;
+}
+
+@keyframes fade {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0.7;
+    }
+}
+
+.tooltipContent {
+    color: #444;
+    font-size: 0.7em;
+    font-family: sans-serif;
+    max-width: 200px;
+}

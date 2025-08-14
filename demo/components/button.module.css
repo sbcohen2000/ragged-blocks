@@ -1,0 +1,61 @@
+.button {
+    display: inline-block;
+    cursor: pointer;
+    background-color: lightgray;
+    border-radius: 2px;
+    transition: 0.1s;
+    padding: 2px;
+    margin: 2px;
+}
+
+.button.disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.button:hover {
+    background-color: #eee;
+    box-shadow: inset 0px -1px 2px 0px darkgray;
+}
+
+.button:active {
+    background-color: lightgray;
+    box-shadow: inset 0px 1px 2px 0px darkgray;
+}
+
+.button.disabled:hover {
+    background-color: lightgray;
+    box-shadow: none;
+}
+
+.buttonContentsContainer {
+    font-family: sans-serif;
+    position: relative;
+    color: transparent;
+}
+
+.buttonContents {
+    color: black;
+    overflow: hidden;
+    position: absolute;
+    text-wrap: nowrap;
+
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+
+    transition-property: top;
+    transition-duration: 0.1s;
+}
+
+.button:hover .buttonContents {
+    top: -1px;
+}
+
+.button:active .buttonContents {
+    top: 1px;
+}
+
+.button.disabled:hover .buttonContents {
+    top: 0;
+}

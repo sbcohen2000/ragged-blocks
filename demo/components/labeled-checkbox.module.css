@@ -1,0 +1,13 @@
+.container {
+    display: inline-flex;
+    font-size: 0.7em;
+    font-family: sans-serif;
+    column-gap: 2px;
+    height: 1em;
+    align-items: baseline;
+}
+
+.container input[type="checkbox"] {
+    position: relative;
+    top: 2px;
+}
