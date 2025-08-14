@@ -1,0 +1,583 @@
+import * as rb from "ragged-blocks";
+import Haskell from "tree-sitter-haskell";
+import Python from "tree-sitter-python";
+import TypeScript from "tree-sitter-typescript";
+import fs from "node:fs";
+import { basename, extname } from "node:path";
+import { exit } from "node:process";
+import { parse, ParseSettings } from "ts-compat";
+import { parseArgs } from "node:util";
+
+function countDigits(s: string): [number, number] {
+  const beforePoint = s.indexOf(".");
+  if(beforePoint === -1) {
+    return [s.length, 0];
+  }
+
+  return [beforePoint, s.length - beforePoint - 1];
+}
+
+function repeat(s: string, n: number): string {
+  let out = "";
+  for(let i = 0; i < n; ++i) {
+    out += s;
+  }
+  return out;
+}
+
+function padStart(s: string, pfx: string, n: number): string {
+  return repeat(pfx, Math.max(n, 0)) + s;
+}
+
+function padEnd(s: string, sfx: string, n: number): string {
+  return s + repeat(sfx, Math.max(n, 0));
+}
+
+function fmtCol(ns: number[], tooSmall: number, forLaTeX: boolean): string[] {
+  const format = Intl.NumberFormat(undefined, {
+    minimumSignificantDigits: 2,
+    maximumSignificantDigits: 2,
+    maximumFractionDigits: 3,
+    roundingPriority: "lessPrecision"
+  });
+
+  let anyTooSmall = false;
+  let maxPfx: number = 0;
+  let maxSfx: number = 0;
+  let intermediate: [string, number, number, boolean][] = [];
+  for(const n of ns) {
+    if(n < tooSmall) {
+      anyTooSmall = true;
+    }
+
+    const s = format.format(Math.max(n, tooSmall));
+    const [nPfx, nSfx] = countDigits(s);
+    maxPfx = Math.max(maxPfx, nPfx);
+    maxSfx = Math.max(maxSfx, nSfx);
+
+    intermediate.push([s, nPfx, nSfx, n < tooSmall]);
+  }
+
+  let pfxAll = "";
+  if(anyTooSmall) {
+    pfxAll = forLaTeX ? "\\phantom{<}" : " ";
+  }
+
+  return intermediate.map(([s, nPfx, nSfx, tooSmall]) => {
+    if(s.indexOf(".") === -1) {
+      s = s + (forLaTeX ? "\\phantom{.}" : " ");
+    }
+
+    let pfx = tooSmall ? "<" : pfxAll;
+    const pz = forLaTeX ? "\\pz{}" : " "
+    return pfx + padEnd(padStart(s, pz, maxPfx - nPfx), pz, maxSfx - nSfx);
+  });
+}
+
+function fmtTable(
+  data: (number | string)[][],
+  forLaTeX: boolean,
+  postprocess: (s: string, row: number, col: number, atEnd: boolean) => string
+): string {
+  const nRows = data.length;
+  const nCols = data[0].length;
+
+  let columns: string[][] = [];
+  for(let col = 0; col < nCols; ++col) {
+    let colData: (number | string)[] = [];
+    for(let row = 0; row < nRows; ++row) {
+      colData.push(data[row][col]);
+    }
+
+    if(colData.every(d => typeof d === "number")) {
+      // Then we have a numeric column.
+      colData = fmtCol(colData, 0.01, forLaTeX);
+    }
+
+    // Turn the column into strings.
+    let maxColLen = 0;
+    let colStrings: string[] = [];
+    for(let row = 0; row < nRows; ++row) {
+      let s = colData[row].toString();
+      s = postprocess(s, row, col, col === nCols - 1);
+
+      colStrings.push(s);
+      maxColLen = Math.max(maxColLen, s.length);
+    }
+
+    // Make each string the same length.
+    for(let i = 0; i < colStrings.length; ++i) {
+      colStrings[i] = padStart(colStrings[i], " ", maxColLen - colStrings[i].length);
+    }
+
+    columns.push(colStrings);
+  }
+
+  let out = "";
+  for(let row = 0; row < nRows; ++row) {
+    for(let col = 0; col < nCols; ++col) {
+      out += columns[col][row];
+    }
+    out += "\n"
+  }
+
+  return out;
+}
+
+/**
+ * The function we use to figure out how big a leaf in the layout tree
+ * is. For the purposes of benchmarking, we set every fragment to the
+ * same height and let its width be proportional to the length of its
+ * contents.
+ */
+function measure(text: string): rb.Rect {
+  return {
+    left: 0,
+    right: text.length * 10,
+    top: 0,
+    bottom: 20
+  };
+}
+
+type BenchResult = {
+  meanHorzMeshDistance: number;
+  horzMeshDistances: number[];
+  meanVertMeshDistance: number;
+  vertMeshDistances: number[];
+  meanLineWidth: number;
+  nFragments: number;
+  duration: number;
+  basename: string;
+  algoStr: Algo;
+  renderable: rb.Render;
+}
+
+type Algo = "Unstyled" | "L1S" | "L1P" | "SBlock" | "BoxesNS" | "Boxes";
+
+function asAlgo(text: string): Algo {
+  switch(text) {
+    case "Unstyled":
+    case "L1S":
+    case "L1P":
+    case "SBlock":
+    case "BoxesNS":
+    case "Boxes": return text;
+    default:
+      throw new Error(`Unknown layout algorithm (${text}). Exiting.`);
+  }
+}
+
+function algoContrOfAlgoStr(algoStr: Algo): rb.Layout {
+  switch(algoStr) {
+    case "Unstyled":
+    case "L1P": return new rb.PebbleLayout(new rb.PebbleLayoutSettings(20));
+    case "L1S": return new rb.RocksLayout(new rb.RocksLayoutSettings(20));
+    case "SBlock": return new rb.SBlocksLayout(new rb.SBlocksLayoutSettings(20));
+    case "BoxesNS":
+    case "Boxes": return new rb.BlocksLayout(new rb.BlocksLayoutSettings());
+    default:
+      throw new Error(`Unknown layout algorithm (${algoStr}). Exiting.`);
+  }
+}
+
+function langOfSrcPath(srcPath: string): any {
+  const ext = extname(srcPath);
+  switch(ext) {
+    case ".ts": return TypeScript.typescript;
+    case ".py": return Python;
+    case ".hs": return Haskell;
+    default:
+      throw new Error(`Unknown input file extension (${ext}). Exiting.`);
+  }
+}
+
+function measureRuntime(srcPath: string, algoStr: Algo, iters: number): number {
+  const algo = algoContrOfAlgoStr(algoStr);
+  const ext = extname(srcPath);
+  const lang = langOfSrcPath(srcPath);
+
+  const settings: ParseSettings = {
+    useSpacers: algoStr !== "BoxesNS",
+    breakMultiLineAtoms: ext === ".py",
+  };
+
+  const src = fs.readFileSync(srcPath, { encoding: "utf8" });
+  const testTree = parse(src, lang, settings);
+  rb.randomizeFillColors(testTree);
+  let testTreeWithMeasurements = rb.measureLayoutTree(testTree, measure);
+
+  const startTime = performance.now();
+  for(let i = 0; i < iters; ++i) {
+    algo.layout(testTreeWithMeasurements);
+  }
+  const endTime = performance.now();
+
+  const duration = (endTime - startTime) / 1000; // seconds
+
+  return duration / iters;
+}
+
+function bench(srcPath: string, algoStr: Algo): BenchResult {
+  console.log(`Working on ${algoStr}...`);
+  const testAlgo = algoContrOfAlgoStr(algoStr);
+  const ext = extname(srcPath);
+  const lang = langOfSrcPath(srcPath);
+
+  const settings: ParseSettings = {
+    useSpacers: algoStr !== "BoxesNS",
+    breakMultiLineAtoms: ext === ".py",
+  };
+
+  const src = fs.readFileSync(srcPath, { encoding: "utf8" });
+  const testTree = parse(src, lang, settings);
+  rb.randomizeFillColors(testTree);
+  let testTreeWithMeasurements = rb.measureLayoutTree(testTree, measure);
+
+  const refTree = parse(src, lang, settings);
+  rb.removePadding(refTree);
+  let refTreeWithMeasurements = rb.measureLayoutTree(refTree, measure);
+
+  if(algoStr === "Unstyled") {
+    testTreeWithMeasurements = refTreeWithMeasurements;
+  }
+
+  let refMesh: rb.MeshDistanceMesh | undefined = undefined;
+  if(algoStr !== "Unstyled") {
+    const refAlgo = new rb.RocksLayout(new rb.RocksLayoutSettings(20));
+    const refResult = refAlgo.layout(refTreeWithMeasurements);
+    refMesh = rb.MeshDistanceMesh.fromFragments(refResult);
+  }
+
+  const startTime = performance.now();
+  const testResult = testAlgo.layout(testTreeWithMeasurements);
+  const endTime = performance.now();
+  const duration = (endTime - startTime) / 1000; // seconds
+
+  console.log(`Finished layout in ${duration} seconds.`);
+
+  const testMesh = rb.MeshDistanceMesh.fromFragments(testResult);
+  const meanLineWidth = testMesh.meanLineWidth();
+
+  let meanHorzMeshDistance = 0;
+  let horzMeshDistances: number[] = [];
+  let meanVertMeshDistance = 0;
+  let vertMeshDistances: number[] = [];
+  if(refMesh !== undefined) {
+    meanHorzMeshDistance = refMesh.meanHorizontalMeshDistance(testMesh);
+    horzMeshDistances = refMesh.horizontalMeshDistances(testMesh);
+    meanVertMeshDistance = refMesh.meanVerticalMeshDistance(testMesh);
+    vertMeshDistances = refMesh.verticalMeshDistances(testMesh);
+  }
+
+  return {
+    meanHorzMeshDistance,
+    horzMeshDistances,
+    meanVertMeshDistance,
+    vertMeshDistances,
+    meanLineWidth,
+    nFragments: testMesh.countFragments(),
+    duration,
+    basename: basename(srcPath),
+    algoStr,
+    renderable:
+    testResult
+      .stack(testMesh.withStyles({ stroke: "blue" }))
+      .stack(refMesh?.withStyles({ stroke: "green" }) ?? new rb.EmptyRendering())
+  }
+}
+
+
+function benchAll(srcPath: string): Map<Algo, BenchResult> {
+  const algos: Algo[] = ["Unstyled", "L1P", "L1S", "SBlock", "BoxesNS", "Boxes"];
+  let out: Map<Algo, BenchResult> = new Map();
+  for(const algo of algos) {
+    const result = bench(srcPath, algo);
+    out.set(algo, result);
+  }
+  return out;
+}
+
+function mkPerfTable(forLaTeX: boolean) {
+  const srcPaths: string[] = [
+    "./inputs/core.ts",
+    "./inputs/diff-objs.ts",
+    "./inputs/functional.py",
+    "./inputs/simplex.py",
+    "./inputs/solve.hs",
+    "./inputs/layout.hs",
+  ];
+
+  // ==================== Performance ====================
+  console.log(">>>>>>>>>>> Performance:");
+
+  const STATIC: { [key: string]: [string, string] } = {
+    "core.ts":       ["3020",  "20k"],
+    "diff-objs.ts":  ["25",   "0.2k"],
+    "functional.py": ["2233", "5.3k"],
+    "simplex.py":    ["339",  "1.0k"],
+    "solve.hs":      ["1736", "6.8k"],
+    "layout.hs":     ["285",  "2.0k"],
+  };
+
+  let perf: (number | string)[][] = [];
+  for(const srcPath of srcPaths) {
+    const base = basename(srcPath);
+    const durationL1P = measureRuntime(srcPath, "L1P", 10);
+    const durationL1S = measureRuntime(srcPath, "L1S", 10);
+
+    const nLOC = STATIC[base][0];
+    const nFrags = STATIC[base][1];
+
+    const row = [base, nLOC, nFrags, durationL1P, durationL1S, durationL1P / durationL1S];
+    perf.push(row);
+  }
+
+  console.log(fmtTable(perf, forLaTeX, (s, _row, col, atEnd) => {
+    if(forLaTeX) {
+      if(col === 5) {
+        s = ` (${s} $\\times{}$)`;
+      } else {
+        s = `${s}`;
+      }
+
+      if(atEnd) {
+        s += " \\\\";
+      } else if(col < 4) {
+        s += " & ";
+      }
+      return s;
+    } else {
+      return s + " ";
+    }
+  }));
+}
+
+function mkErrorTables(forLaTeX: boolean) {
+  const srcPaths: string[] = [
+    "./inputs/core.ts",
+    "./inputs/diff-objs.ts",
+    "./inputs/functional.py",
+    "./inputs/simplex.py",
+    "./inputs/solve.hs",
+    "./inputs/layout.hs",
+  ];
+
+  let data: Map<string, Map<Algo, BenchResult>> = new Map();
+  for(const srcPath of srcPaths) {
+    console.log(`>>>>>>>>>>> Benching ${srcPath} <<<<<<<<<<<`);
+
+    const rowData = benchAll(srcPath);
+    data.set(srcPath, rowData);
+  }
+
+  // ==================== Line Width =====================
+  console.log(">>>>>>>>>>> Line width:");
+  let lineWidth: (number | string)[][] = [];
+  for(const srcPath of srcPaths) {
+    let rowData = data.get(srcPath)!;
+
+    const refLineLength = rowData.get("BoxesNS")!.meanLineWidth;
+
+    const row = [
+      basename(srcPath),
+
+      rowData.get("Unstyled")!.meanLineWidth,
+      rowData.get("Unstyled")!.meanLineWidth / refLineLength,
+
+      rowData.get("L1S")!.meanLineWidth,
+      rowData.get("L1S")!.meanLineWidth / refLineLength,
+
+      rowData.get("SBlock")!.meanLineWidth,
+      rowData.get("SBlock")!.meanLineWidth / refLineLength,
+
+      rowData.get("BoxesNS")!.meanLineWidth,
+      rowData.get("BoxesNS")!.meanLineWidth / refLineLength,
+
+      rowData.get("Boxes")!.meanLineWidth,
+      rowData.get("Boxes")!.meanLineWidth / refLineLength,
+    ];
+
+    lineWidth.push(row);
+  }
+
+  console.log(fmtTable(lineWidth, forLaTeX, (s, _row, col, atEnd) => {
+    if(forLaTeX) {
+      if(col % 2 === 0 && col > 0) {
+        s = ` (${s})`;
+      } else {
+        s = `${s}`
+      }
+
+      if(atEnd) {
+        s += " \\\\";
+      } else if(col % 2 === 0 || col === 0) {
+        s += " & ";
+      }
+      return s;
+    } else {
+      return s + " ";
+    }
+  }));
+
+
+  // =================== Mesh Distance ===================
+  console.log(">>>>>>>>>>> Mesh distance:");
+  let meshDistance: (number | string)[][] = [];
+  for(const srcPath of srcPaths) {
+    let rowData = data.get(srcPath)!;
+
+    const refHorzMeshDistance = rowData.get("BoxesNS")!.meanHorzMeshDistance;
+    const refVertMeshDistance = rowData.get("BoxesNS")!.meanVertMeshDistance;
+
+    const row = [
+      basename(srcPath),
+
+      rowData.get("L1S")!.meanHorzMeshDistance,
+      rowData.get("L1S")!.meanHorzMeshDistance / refHorzMeshDistance,
+      rowData.get("SBlock")!.meanHorzMeshDistance,
+      rowData.get("SBlock")!.meanHorzMeshDistance / refHorzMeshDistance,
+      rowData.get("BoxesNS")!.meanHorzMeshDistance,
+      rowData.get("BoxesNS")!.meanHorzMeshDistance / refHorzMeshDistance,
+
+      rowData.get("L1S")!.meanVertMeshDistance,
+      rowData.get("L1S")!.meanVertMeshDistance / refVertMeshDistance,
+      rowData.get("SBlock")!.meanVertMeshDistance,
+      rowData.get("SBlock")!.meanVertMeshDistance / refVertMeshDistance,
+      rowData.get("BoxesNS")!.meanVertMeshDistance,
+      rowData.get("BoxesNS")!.meanVertMeshDistance / refVertMeshDistance,
+    ];
+
+    meshDistance.push(row);
+  }
+
+  console.log(fmtTable(meshDistance, forLaTeX, (s, _row, col, atEnd) => {
+    if(forLaTeX) {
+      if(col % 2 === 0 && col > 0) {
+        s = ` (${s})`;
+      } else {
+        s = `${s}`
+      }
+
+      if(atEnd) {
+        s += " \\\\";
+      } else if(col % 2 === 0 || col === 0) {
+        s += " & ";
+      }
+      return s;
+    } else {
+      return s + " ";
+    }
+  }));
+}
+
+function main() {
+  const { values } = parseArgs({
+    options: {
+      dumpHorzMeshDistances: {
+        type: "boolean",
+        default: false,
+      },
+      dumpVerticalMeshDistances: {
+        type: "boolean",
+        default: false,
+      },
+      mkPerfTable: {
+        type: "boolean",
+        default: false,
+      },
+      mkErrorTables: {
+        type: "boolean",
+        default: false,
+      },
+      forLaTeX: {
+        type: "boolean",
+        default: false,
+      },
+      verbose: {
+        type: "boolean",
+        default: false,
+        short: "v",
+      },
+      pprintLayoutTree: {
+        type: "boolean",
+        default: false,
+      },
+      input: {
+        type: "string",
+        short: "i",
+      },
+      output: {
+        type: "string",
+        short: "o",
+      },
+      alg: {
+        type: "string",
+        short: "a",
+        default: "L1S"
+      }
+    }
+  });
+
+  if(values.mkErrorTables || values.mkPerfTable) {
+    if(values.mkErrorTables) {
+      mkErrorTables(values.forLaTeX);
+    }
+
+    if(values.mkPerfTable) {
+      mkPerfTable(values.forLaTeX);
+    }
+
+    exit(0);
+  }
+
+  if(!values.input) {
+    console.error("No input file supplied. Exiting.");
+    exit(1);
+  }
+
+  const ext = extname(values.input);
+  const lang = (() => {
+    switch(ext) {
+      case ".ts": return TypeScript.typescript;
+      case ".py": return Python;
+      case ".hs": return Haskell;
+      default:
+        console.error(`Unknown input file extension (${ext}). Exiting.`);
+        exit(1);
+    }
+  })();
+
+  const base = basename(values.input, ext);
+  if(!values.output) {
+    values.output = base + ".svg";
+  }
+
+  if(values.verbose) {
+    console.log(`Using ${lang.name} parser.`);
+  }
+
+  const algoStr = asAlgo(values.alg);
+  const result = bench(values.input, algoStr);
+
+  if(values.verbose) {
+    console.log("mean horz mesh distance: ", result.meanHorzMeshDistance);
+    console.log("mean vert mesh distance: ", result.meanVertMeshDistance);
+    console.log("mean line width: ", result.meanLineWidth);
+    console.log("number of fragments: ", result.nFragments);
+    console.log("duration: ", result.duration);
+  }
+
+  if(values.dumpHorzMeshDistances) {
+    console.log(result.horzMeshDistances.join(","));
+  }
+
+  if(values.dumpVerticalMeshDistances) {
+    console.log(result.vertMeshDistances.join(","));
+  }
+
+  const svg = rb.toSVG(result.renderable, 10);
+
+  fs.writeFileSync(values.output, svg);
+}
+
+main();

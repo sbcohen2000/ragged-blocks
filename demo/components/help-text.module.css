@@ -1,0 +1,43 @@
+.helpTextRoot {
+    display: flex;
+    justify-content: space-between;
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.helpTextLayout {
+    top: 20px;
+    position: sticky;
+}
+
+.textColumn {
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+.textSection {
+    cursor: pointer;
+}
+
+.selected {
+    border-left: 4px solid steelblue;
+    padding-left: 2px;
+    background-color: #eee;
+}
+
+.selected .tag {
+    display: inline-block;
+    background-color: lightblue;
+    border: 1px solid steelblue;
+    border-radius: 2px;
+    padding: 1px;
+}
+
+.selected .block {
+    display: inline-block;
+    background-color: lightgray;
+    border: 1px solid gray;
+    border-radius: 2px;
+    padding: 1px;
+}

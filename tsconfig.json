@@ -1,0 +1,17 @@
+{
+    "exclude": ["demo", "dist", "test", "bench", "ts-compat", "*jest*"],
+    "compilerOptions": {
+        "skipLibCheck": true,
+        "target": "esnext",
+        "module": "esnext",
+        "strict": true,
+        "moduleResolution": "bundler",
+        "esModuleInterop": true,
+
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "outDir": "dist",
+        "rootDirs": ["src"]
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "name": "bench",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "bench": "npx tsx index.ts"
+    },
+    "dependencies": {
+        "ragged-blocks": "file:../",
+        "tree-sitter": "^0.21.0",
+        "tree-sitter-haskell": "^0.23.1",
+        "tree-sitter-python": "0.23.4",
+        "tree-sitter-typescript": "^0.23.2",
+        "ts-compat": "file:../ts-compat/"
+    },
+    "devDependencies": {
+        "tsx": "^4.20.3"
+    }
+}

@@ -1,0 +1,85 @@
+/* Note that this rule is needed because the root component contains the */
+/* definition of the measure function, and this function must use the correct font. */
+@font-face {
+    font-family: "Inconsolata-Medium";
+    src: url("../Inconsolata-Medium.woff2") format("woff2");
+}
+
+.label {
+    font-size: 0.7em;
+    font-family: sans-serif;
+}
+
+.compareButtonsCluster {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.compareButtons {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.layoutsContainer {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.aboutTextContainer {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+
+.aboutText {
+    max-width: 400px;
+}
+
+.aboutTextSpacer {
+}
+
+.infoContainer {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.parseErrorBox {
+    position: relative;
+    background-color: peachpuff;
+    padding: 4px;
+    border-radius: 4px;
+    border-top-left-radius: 0;
+    border: 2px solid salmon;
+    margin-top: 12px;
+}
+
+.parseErrorBox:before {
+    content: "Parse Error";
+    padding-left: 4px;
+    padding-right: 4px;
+    font-size: 12px;
+    font-family: sans-serif;
+    position: absolute;
+    left: -2px;
+    top: calc(-12px - 2px);
+    height: 12px;
+    border-left: 2px solid salmon;
+    border-top: 2px solid salmon;
+    border-right: 2px solid salmon;
+    background-color: peachpuff;
+    z-index: 1;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+.tooltipContent {
+    color: #444;
+    font-size: 0.7em;
+    font-family: sans-serif;
+    max-width: 200px;
+}
