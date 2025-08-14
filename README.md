@@ -1,4 +1,6 @@
-# Structured Text
+# Ragged Blocks
+
+This is the source repository accompanying our paper, [Ragged Blocks: Rendering Structured Text With Style](https://arxiv.org/pdf/2507.06460). It contains the implementation of every algorithm we benchmarked in the paper, as well as a [demo application](https://sbcohen2000.github.io/ragged-blocks/) that demonstrates the algorithms on layout trees of the reader's choice.
 
 ### Building
 Simply run `tsc` in the root of the repository, or `npm run build`.
