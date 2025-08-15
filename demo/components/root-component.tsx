@@ -177,7 +177,7 @@ export default function Root() {
           This website is an interactive sandbox that accompanies our paper, <a href={"https://arxiv.org/pdf/2507.06460"}><em>Ragged Blocks: Rendering Structured Text with Style</em></a>. It implements all of the algorithms that we benchmarked in the paper, and offers a way to visualize how each algorithm renders a layout tree of the reader's choice.
           <br/>
           <br/>
-          See the below <em>Syntax Guide</em> for instructions on how to construct your own examples.
+          See the below <em>Syntax Guide</em> for instructions on how to construct your own examples. Type into the <em>Playground</em> to construct examples, and compare the outputs of different layout algorithms.
         </p>
       </Dropdown>
       <div className={styles.sectionLine}></div>
