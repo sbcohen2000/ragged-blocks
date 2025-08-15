@@ -35,10 +35,8 @@
 }
 
 .aboutText {
-    max-width: 400px;
-}
-
-.aboutTextSpacer {
+    padding-left: 6px;
+    max-width: 600px;
 }
 
 .infoContainer {

@@ -172,16 +172,12 @@ export default function Root() {
   return (
     <div>
       <Dropdown isOpen={aboutOpen} onChange={setAboutOpen} label={"About"}>
-        <div className={styles.aboutTextContainer}>
-          <div className={styles.aboutTextSpacer}></div>
-          <p className={styles.aboutText}
-          >
-             This website is an interactive sandbox that accompanies our paper, <a href={"https://arxiv.org/pdf/2507.06460"}><em>Ragged Blocks: Rendering Structured Text with Style</em></a>. It implements all of the algorithms that we benchmarked in the paper, and offers a way to visualize how each algorithm renders a layout tree of the reader's choice.
-            <br/>
-            <br/>
-                   See the below <em>Syntax Guide</em> for instructions on how to construct your own examples.
-          </p>
-        </div>
+        <p className={styles.aboutText}>
+          This website is an interactive sandbox that accompanies our paper, <a href={"https://arxiv.org/pdf/2507.06460"}><em>Ragged Blocks: Rendering Structured Text with Style</em></a>. It implements all of the algorithms that we benchmarked in the paper, and offers a way to visualize how each algorithm renders a layout tree of the reader's choice.
+          <br/>
+          <br/>
+          See the below <em>Syntax Guide</em> for instructions on how to construct your own examples.
+        </p>
       </Dropdown>
       <Dropdown isOpen={helpOpen} onChange={setHelpOpen} label={"Syntax Guide"}>
         <HelpText measure={measure}/>
