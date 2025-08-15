@@ -23,10 +23,10 @@ export default function Select<S extends string>(props: SelectProps<S>) {
   }
 
   return (
-    <select onChange={onChange}>
+    <select onChange={onChange} value={props.selectedOption}>
       {
         props.options.map(opt =>
-          (<option selected={opt===props.selectedOption} value={opt}>{opt}</option>)
+          (<option key={opt} value={opt}>{opt}</option>)
         )
       }
     </select>
