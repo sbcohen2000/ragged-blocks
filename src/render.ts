@@ -427,7 +427,7 @@ class SvgTextBuilder {
   font(family: string, size: number) {
     // HACK: These style properties should be set in a more principled
     // way.
-    this.it.style = `font-family:${family};font-size: ${size};white-space: pre`;
+    this.it.style = `font-family:${family};font-size: ${size}px;white-space: pre`;
     return this;
   }
 }
