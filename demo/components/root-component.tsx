@@ -284,7 +284,6 @@ export default function Root() {
               layoutTree={layoutTree}
               algoName={algoName}
               measure={measure}
-              onRemoveLayoutPressed={removeLayout}
               useWebWorkers={useWebWorkers}
             />
           ))]
