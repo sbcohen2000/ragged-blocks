@@ -14,9 +14,9 @@ export interface ButtonProps {
    */
   label?: string;
   /**
-   * Is the button disabled?
+   * Is the button enabled?
    */
-  disabled?: boolean;
+  enabled?: boolean;
   /**
    * A function which is called when the button is clicked.
    */
@@ -38,7 +38,7 @@ export default function Button(props: ButtonProps) {
   // copy with absolute positioning so that we can bold the button
   // text without changing its size.
   return (
-    <span ref={props.ref} style={props.style} className={style.button + (props.disabled ? (" " + style.disabled) : "")} onClick={props.onClick}>
+    <span ref={props.ref} style={props.style} className={style.button + (props.enabled ? (" " + style.enabled) : "")} onClick={props.onClick}>
       <span className={style.buttonContentsContainer}>
         {
           props.icon ?

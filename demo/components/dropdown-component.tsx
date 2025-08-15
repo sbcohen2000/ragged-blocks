@@ -31,7 +31,11 @@ export default function Dropdown(props: PropsWithChildren<DropdownProps>) {
 
   return (
     <div>
-      <Button onClick={onClick} icon={props.icon} label={props.label ?? ""}/>
+      <Button
+        onClick={onClick}
+        icon={props.icon}
+        label={props.label ?? ""}
+        enabled={props.isOpen}/>
       {
         (props.isOpen ?? false)
           ? <div>{props.children}</div>

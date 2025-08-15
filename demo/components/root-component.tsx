@@ -164,6 +164,14 @@ export default function Root() {
     );
   }
 
+  function toggleLayout(algoName: rb.AlgorithmName) {
+    if(hasLayout(algoName)) {
+      removeLayout(algoName);
+    } else {
+      addLayout(algoName);
+    }
+  }
+
   // Re-render when the view initially loads.
   react.useEffect(() => {
     onChange(editorValue);
@@ -232,8 +240,8 @@ export default function Root() {
             </div>
             <Button
               label={"L1P"}
-              onClick={() => addLayout("L1P")}
-              disabled={hasLayout("L1P")}
+              onClick={() => toggleLayout("L1P")}
+              enabled={hasLayout("L1P")}
             />
           </Tooltip>
           <Tooltip>
@@ -242,8 +250,8 @@ export default function Root() {
             </div>
             <Button
               label={"L1S+"}
-              onClick={() => addLayout("L1S+")}
-              disabled={hasLayout("L1S+")}
+              onClick={() => toggleLayout("L1S+")}
+              enabled={hasLayout("L1S+")}
             />
           </Tooltip>
           <Tooltip>
@@ -252,8 +260,8 @@ export default function Root() {
             </div>
             <Button
               label={"Blocks"}
-              onClick={() => addLayout("Blocks")}
-              disabled={hasLayout("Blocks")}
+              onClick={() => toggleLayout("Blocks")}
+              enabled={hasLayout("Blocks")}
             />
           </Tooltip>
           <Tooltip>
@@ -262,8 +270,8 @@ export default function Root() {
             </div>
             <Button
               label={"S-Blocks"}
-              onClick={() => addLayout("S-Blocks")}
-              disabled={hasLayout("S-Blocks")}
+              onClick={() => toggleLayout("S-Blocks")}
+              enabled={hasLayout("S-Blocks")}
             />
           </Tooltip>
         </div>
