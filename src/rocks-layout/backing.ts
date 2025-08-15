@@ -97,10 +97,10 @@ export default class Backing {
     }
   }
 
-  *iterChunks(): IterableIterator<number[]> {
+  *iterChunks(): IterableIterator<{ indices: IterableIterator<number>, minY: number }> {
     for(let i = this.maxChunk; i >= this.minChunk; --i) {
       const chunk = this.chunks.get(i)!;
-      yield [...chunk.values()];
+      yield { indices: chunk.values(), minY: i * CELL_SIZE };
     }
   }
 

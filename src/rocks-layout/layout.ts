@@ -39,10 +39,18 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
       continue;
     }
 
-    for(const chunk of backing.iterChunks()) {
+    const maxPadding = timetable.getMaxPadding(bIdx);
+
+    for(const { indices, minY } of backing.iterChunks()) {
+      /**
+       * This flag is set when translating this rectangle in region `b`
+       * puts `b` in a chunk above the current one. This means that we
+       * _must_ investigate above chunks.
+       */
+      let mustContinue: boolean = false;
       let maxOffsetOnB: number | null = null;
 
-      for(const idx of chunk) {
+      for(const idx of indices) {
         // Filter out indices which aren't in `a`.
         if(idx < a.range.begin || idx >= a.range.end) {
           continue;
@@ -72,11 +80,18 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
         } else {
           maxOffsetOnB = Math.max(maxOffsetOnB, offset);
         }
+
+        if(maxOffsetOnB - maxPadding < minY) {
+          mustContinue = true;
+        }
       }
 
       if(maxOffsetOnB !== null) {
         maxOffset = Math.max(maxOffset, maxOffsetOnB);
-        break;
+
+        if(!mustContinue) {
+          break;
+        }
       }
     }
   }
@@ -88,8 +103,8 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
   for(const bIdx of enumerateIndices(b)) {
     const rb = backing.getByIndex(bIdx);
 
-    for(const chunk of backing.iterChunks()) {
-      for(const aIdx of chunk) {
+    for(const { indices } of backing.iterChunks()) {
+      for(const aIdx of indices) {
         if(aIdx < a.range.begin || aIdx >= a.range.end) {
           continue;
         }
