@@ -81,3 +81,17 @@
     font-family: sans-serif;
     max-width: 200px;
 }
+
+.playgroundLabel {
+    /* Styled to be visually consistent with a Button component. */
+    padding-left: 4px;
+    font-family: sans-serif;
+}
+
+.sectionLine {
+    background-color: black;
+    height: 1px;
+    margin-bottom: 4px;
+    margin-top: 4px;
+    width: 100%;
+}

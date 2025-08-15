@@ -171,6 +171,7 @@ export default function Root() {
 
   return (
     <div>
+      <div className={styles.sectionLine}></div>
       <Dropdown isOpen={aboutOpen} onChange={setAboutOpen} label={"About"}>
         <p className={styles.aboutText}>
           This website is an interactive sandbox that accompanies our paper, <a href={"https://arxiv.org/pdf/2507.06460"}><em>Ragged Blocks: Rendering Structured Text with Style</em></a>. It implements all of the algorithms that we benchmarked in the paper, and offers a way to visualize how each algorithm renders a layout tree of the reader's choice.
@@ -179,9 +180,12 @@ export default function Root() {
           See the below <em>Syntax Guide</em> for instructions on how to construct your own examples.
         </p>
       </Dropdown>
+      <div className={styles.sectionLine}></div>
       <Dropdown isOpen={helpOpen} onChange={setHelpOpen} label={"Syntax Guide"}>
         <HelpText measure={measure}/>
       </Dropdown>
+      <div className={styles.sectionLine}></div>
+      <span className={styles.playgroundLabel}>Playground</span>
       <CodeMirror value={editorValue} onChange={onChange} />
       {
         parseError !== ""
