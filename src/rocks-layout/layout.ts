@@ -41,29 +41,23 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
 
     const maxPadding = timetable.getMaxPadding(bIdx);
 
-    for(const { indices, minY } of backing.iterChunks()) {
-      /**
-       * This flag is set when translating this rectangle in region `b`
-       * puts `b` in a chunk above the current one. This means that we
-       * _must_ investigate above chunks.
-       */
-      let mustContinue: boolean = false;
+    for(const { indices: aIndices, minY } of backing.iterChunks()) {
       let maxOffsetOnB: number | null = null;
 
-      for(const idx of indices) {
+      for(const aIdx of aIndices) {
         // Filter out indices which aren't in `a`.
-        if(idx < a.range.begin || idx >= a.range.end) {
+        if(aIdx < a.range.begin || aIdx >= a.range.end) {
           continue;
         }
 
-        const ra = backing.getByIndex(idx);
+        const ra = backing.getByIndex(aIdx);
 
         // Check if `ra` is a spacer.
         if(typeof ra === "number") {
           continue;
         }
 
-        const [aAmt, bAmt] = timetable.spaceBetween(idx, bIdx);
+        const [aAmt, bAmt] = timetable.spaceBetween(aIdx, bIdx);
         const rai = inflate(ra, aAmt);
         const rbi = inflate(rb, bAmt);
 
@@ -80,16 +74,17 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
         } else {
           maxOffsetOnB = Math.max(maxOffsetOnB, offset);
         }
-
-        if(maxOffsetOnB - maxPadding < minY) {
-          mustContinue = true;
-        }
       }
 
       if(maxOffsetOnB !== null) {
         maxOffset = Math.max(maxOffset, maxOffsetOnB);
 
-        if(!mustContinue) {
+        // If the maximum offset we found in this chunk is lower than
+        // the minY of the chunk plus the maximum padding that can be
+        // applied to this element `b`, then this element can't
+        // interact with any element in a chunk above us. So we're
+        // certainly done.
+        if(maxOffsetOnB - maxPadding >= minY) {
           break;
         }
       }
