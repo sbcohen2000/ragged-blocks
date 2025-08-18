@@ -1,4 +1,5 @@
 import * as rb from "ragged-blocks";
+import * as readline from "node:readline/promises";
 import Haskell from "tree-sitter-haskell";
 import Python from "tree-sitter-python";
 import TypeScript from "tree-sitter-typescript";
@@ -470,7 +471,7 @@ function mkErrorTables(forLaTeX: boolean) {
   }));
 }
 
-function main() {
+async function main() {
   const { values } = parseArgs({
     options: {
       dumpHorzMeshDistances: {
@@ -514,9 +515,23 @@ function main() {
         type: "string",
         short: "a",
         default: "L1S"
+      },
+      wait: {
+        type: "boolean",
+        default: false
       }
     }
   });
+
+  if(values.wait) {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    await rl.question("Waiting for input...");
+    rl.close();
+  }
 
   if(values.mkErrorTables || values.mkPerfTable) {
     if(values.mkErrorTables) {
