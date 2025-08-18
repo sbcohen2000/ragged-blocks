@@ -175,16 +175,17 @@ type BenchResult = {
   renderable: rb.Render;
 }
 
-type Algo = "Unstyled" | "L1S" | "L1P" | "SBlock" | "BoxesNS" | "Boxes";
+type Algo = "Unstyled" | "L1S" | "L1S+" | "L1P" | "S-Blocks" | "BlocksNS" | "Blocks";
 
 function asAlgo(text: string): Algo {
   switch(text) {
     case "Unstyled":
     case "L1S":
+    case "L1S+":
     case "L1P":
-    case "SBlock":
-    case "BoxesNS":
-    case "Boxes": return text;
+    case "S-Blocks":
+    case "BlocksNS":
+    case "Blocks": return text;
     default:
       throw new Error(`Unknown layout algorithm (${text}). Exiting.`);
   }
@@ -195,9 +196,10 @@ function algoContrOfAlgoStr(algoStr: Algo): rb.Layout {
     case "Unstyled":
     case "L1P": return new rb.PebbleLayout(new rb.PebbleLayoutSettings(20));
     case "L1S": return new rb.RocksLayout(new rb.RocksLayoutSettings(20));
-    case "SBlock": return new rb.SBlocksLayout(new rb.SBlocksLayoutSettings(20));
-    case "BoxesNS":
-    case "Boxes": return new rb.BlocksLayout(new rb.BlocksLayoutSettings());
+    case "L1S+": return new rb.OutlinedRocksLayout(new rb.OutlinedRocksLayoutSettings(20, false));
+    case "S-Blocks": return new rb.SBlocksLayout(new rb.SBlocksLayoutSettings(20));
+    case "BlocksNS":
+    case "Blocks": return new rb.BlocksLayout(new rb.BlocksLayoutSettings());
     default:
       throw new Error(`Unknown layout algorithm (${algoStr}). Exiting.`);
   }
@@ -220,7 +222,7 @@ function measureRuntime(srcPath: string, algoStr: Algo, iters: number): number {
   const lang = langOfSrcPath(srcPath);
 
   const settings: ParseSettings = {
-    useSpacers: algoStr !== "BoxesNS",
+    useSpacers: algoStr !== "BlocksNS",
     breakMultiLineAtoms: ext === ".py",
   };
 
@@ -247,7 +249,7 @@ function bench(srcPath: string, algoStr: Algo): BenchResult {
   const lang = langOfSrcPath(srcPath);
 
   const settings: ParseSettings = {
-    useSpacers: algoStr !== "BoxesNS",
+    useSpacers: algoStr !== "BlocksNS",
     breakMultiLineAtoms: ext === ".py",
   };
 
@@ -309,7 +311,7 @@ function bench(srcPath: string, algoStr: Algo): BenchResult {
 
 
 function benchAll(srcPath: string): Map<Algo, BenchResult> {
-  const algos: Algo[] = ["Unstyled", "L1P", "L1S", "SBlock", "BoxesNS", "Boxes"];
+  const algos: Algo[] = ["Unstyled", "L1P", "L1S", "S-Blocks", "BlocksNS", "Blocks"];
   let out: Map<Algo, BenchResult> = new Map();
   for(const algo of algos) {
     const result = bench(srcPath, algo);
@@ -397,7 +399,7 @@ function mkErrorTables(forLaTeX: boolean) {
   for(const srcPath of srcPaths) {
     let rowData = data.get(srcPath)!;
 
-    const refLineLength = rowData.get("BoxesNS")!.meanLineWidth;
+    const refLineLength = rowData.get("BlocksNS")!.meanLineWidth;
 
     const row = [
       basename(srcPath),
@@ -408,14 +410,14 @@ function mkErrorTables(forLaTeX: boolean) {
       rowData.get("L1S")!.meanLineWidth,
       rowData.get("L1S")!.meanLineWidth / refLineLength,
 
-      rowData.get("SBlock")!.meanLineWidth,
-      rowData.get("SBlock")!.meanLineWidth / refLineLength,
+      rowData.get("S-Blocks")!.meanLineWidth,
+      rowData.get("S-Blocks")!.meanLineWidth / refLineLength,
 
-      rowData.get("BoxesNS")!.meanLineWidth,
-      rowData.get("BoxesNS")!.meanLineWidth / refLineLength,
+      rowData.get("BlocksNS")!.meanLineWidth,
+      rowData.get("BlocksNS")!.meanLineWidth / refLineLength,
 
-      rowData.get("Boxes")!.meanLineWidth,
-      rowData.get("Boxes")!.meanLineWidth / refLineLength,
+      rowData.get("Blocks")!.meanLineWidth,
+      rowData.get("Blocks")!.meanLineWidth / refLineLength,
     ];
 
     lineWidth.push(row);
@@ -447,25 +449,25 @@ function mkErrorTables(forLaTeX: boolean) {
   for(const srcPath of srcPaths) {
     let rowData = data.get(srcPath)!;
 
-    const refHorzMeshDistance = rowData.get("BoxesNS")!.meanHorzMeshDistance;
-    const refVertMeshDistance = rowData.get("BoxesNS")!.meanVertMeshDistance;
+    const refHorzMeshDistance = rowData.get("BlocksNS")!.meanHorzMeshDistance;
+    const refVertMeshDistance = rowData.get("BlocksNS")!.meanVertMeshDistance;
 
     const row = [
       basename(srcPath),
 
       rowData.get("L1S")!.meanHorzMeshDistance,
       rowData.get("L1S")!.meanHorzMeshDistance / refHorzMeshDistance,
-      rowData.get("SBlock")!.meanHorzMeshDistance,
-      rowData.get("SBlock")!.meanHorzMeshDistance / refHorzMeshDistance,
-      rowData.get("BoxesNS")!.meanHorzMeshDistance,
-      rowData.get("BoxesNS")!.meanHorzMeshDistance / refHorzMeshDistance,
+      rowData.get("S-Blocks")!.meanHorzMeshDistance,
+      rowData.get("S-Blocks")!.meanHorzMeshDistance / refHorzMeshDistance,
+      rowData.get("BlocksNS")!.meanHorzMeshDistance,
+      rowData.get("BlocksNS")!.meanHorzMeshDistance / refHorzMeshDistance,
 
       rowData.get("L1S")!.meanVertMeshDistance,
       rowData.get("L1S")!.meanVertMeshDistance / refVertMeshDistance,
-      rowData.get("SBlock")!.meanVertMeshDistance,
-      rowData.get("SBlock")!.meanVertMeshDistance / refVertMeshDistance,
-      rowData.get("BoxesNS")!.meanVertMeshDistance,
-      rowData.get("BoxesNS")!.meanVertMeshDistance / refVertMeshDistance,
+      rowData.get("S-Blocks")!.meanVertMeshDistance,
+      rowData.get("S-Blocks")!.meanVertMeshDistance / refVertMeshDistance,
+      rowData.get("BlocksNS")!.meanVertMeshDistance,
+      rowData.get("BlocksNS")!.meanVertMeshDistance / refVertMeshDistance,
     ];
 
     meshDistance.push(row);
