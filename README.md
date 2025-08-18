@@ -30,11 +30,7 @@ Would run the single test called `atom-newline-atom`.
 
 ### Running the Benchmarks
 
-Navigate to `bench`, and run `tsx index.ts`. By default, the benchmarking script expects a `-i` flag and a source file (either TypeScript, Python, or Haskell). The script will parse and layout the source file, producing an svg with the same basename as the input. The name of the output file can be specified with `-o`.
-
-Passing `--mkErrorTables` will benchmark all of the source files in `bench/inputs`, and produce two tables which report the calculated line width and mesh distance of each file under each algorithm.
-
-Passing `--mkPerfTable` will benchmark the running time of algorithms L1P and L1S on every example in `bench/inputs` and produce a table with the results.
+Navigate to `bench`, and run `tsx index.ts` to see what commands are available. The script is able to `bench`mark a layout algorithm, running it repeatedly and reporting the mean running time. It can also `gen`erate the tables presented in the paper (two for error, and one for running time). There's also a `layout` command which runs one of the layout algorithms on an input file and produces an SVG image of the resulting layout.
 
 The benchmark suite is composed of 6 source files which are hosted on GitHub. Here, they are listed along with the URL from which they were retrieved:
 - `simplex.py`: [link](https://github.com/TheAlgorithms/Python/blob/master/linear_programming/simplex.py)

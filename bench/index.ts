@@ -7,7 +7,29 @@ import fs from "node:fs";
 import { basename, extname } from "node:path";
 import { exit } from "node:process";
 import { parse, ParseSettings } from "ts-compat";
-import { parseArgs } from "node:util";
+import { program, Command, Argument, Option } from "commander";
+
+/**
+ * Produce a human readable string representing the given time in
+ * seconds.
+ *
+ * @param duration The duration in seconds.
+ * @returns A human readable string representing the duration.
+ */
+function fmtDuration(duration: number) {
+  let unit = "seconds";
+  if(duration < 0.1) {
+    unit = "milliseconds";
+    duration *= 1000;
+  }
+
+  const format = Intl.NumberFormat(undefined, {
+    minimumSignificantDigits: 4,
+    maximumSignificantDigits: 8,
+  });
+
+  return `${format.format(duration)} ${unit}`;
+}
 
 function countDigits(s: string): [number, number] {
   const beforePoint = s.indexOf(".");
@@ -254,8 +276,6 @@ function bench(srcPath: string, algoStr: Algo): BenchResult {
   const endTime = performance.now();
   const duration = (endTime - startTime) / 1000; // seconds
 
-  console.log(`Finished layout in ${duration} seconds.`);
-
   const testMesh = rb.MeshDistanceMesh.fromFragments(testResult);
   const meanLineWidth = testMesh.meanLineWidth();
 
@@ -472,127 +492,106 @@ function mkErrorTables(forLaTeX: boolean) {
 }
 
 async function main() {
-  const { values } = parseArgs({
-    options: {
-      dumpHorzMeshDistances: {
-        type: "boolean",
-        default: false,
-      },
-      dumpVerticalMeshDistances: {
-        type: "boolean",
-        default: false,
-      },
-      mkPerfTable: {
-        type: "boolean",
-        default: false,
-      },
-      mkErrorTables: {
-        type: "boolean",
-        default: false,
-      },
-      forLaTeX: {
-        type: "boolean",
-        default: false,
-      },
-      verbose: {
-        type: "boolean",
-        default: false,
-        short: "v",
-      },
-      pprintLayoutTree: {
-        type: "boolean",
-        default: false,
-      },
-      input: {
-        type: "string",
-        short: "i",
-      },
-      output: {
-        type: "string",
-        short: "o",
-      },
-      alg: {
-        type: "string",
-        short: "a",
-        default: "L1S"
-      },
-      wait: {
-        type: "boolean",
-        default: false
+  const inputFileArg = new Argument("<input file>", "The input source file to layout.");
+  const algOption = new Option("-a --algorithm <string>", "The algorithm to use for layout.").default("L1S");
+  const outOption = new Option("-o --output <string>", "The name of the output file to write.");
+
+  const benchCmd = new Command("bench");
+  {
+    benchCmd.description("Benchmark a layout algorithm, running it multiple times but emitting no output files.");
+    benchCmd.option("-i --iters <number>", "The number of iterations to run.", "10");
+    benchCmd.option("--wait", "Block until the program receives a line from STDIN before proceeding.", false)
+    benchCmd.addArgument(inputFileArg);
+    benchCmd.addOption(algOption);
+    benchCmd.action(async (srcPath, opts) => {
+      if(opts.wait) {
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        await rl.question("Waiting for input...");
+        rl.close();
       }
-    }
-  });
 
-  if(values.wait) {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
+      const duration = measureRuntime(srcPath, opts.algorithm, opts.iters);
+      console.log(`Finished layout in ${fmtDuration(duration)} (average of ${opts.iters} iterations).`);
     });
-
-    await rl.question("Waiting for input...");
-    rl.close();
   }
 
-  if(values.mkErrorTables || values.mkPerfTable) {
-    if(values.mkErrorTables) {
-      mkErrorTables(values.forLaTeX);
-    }
+  const tableCmd = new Command("gen");
+  {
+    tableCmd.description("Generate benchmark tables.");
+    const latexOption = new Option("--LaTeX", "Format the tables using LaTeX syntax.").default(false);
 
-    if(values.mkPerfTable) {
-      mkPerfTable(values.forLaTeX);
-    }
+    const perfCmd = new Command("perfTable");
+    perfCmd.addOption(latexOption);
+    perfCmd.description("Generate a performance benchmark.");
+    perfCmd.action(opt => {
+      mkPerfTable(opt.LaTeX);
+    });
+    tableCmd.addCommand(perfCmd);
 
-    exit(0);
+    const errorCmd = new Command("errorTables");
+    errorCmd.addOption(latexOption);
+    errorCmd.description("Generate an error benchmark.");
+    errorCmd.action(opt => {
+      mkErrorTables(opt.LaTeX);
+    });
+    tableCmd.addCommand(errorCmd);
   }
 
-  if(!values.input) {
-    console.error("No input file supplied. Exiting.");
-    exit(1);
+  const layoutCmd = new Command("layout");
+  {
+    layoutCmd.description("Run a layout algorithm, producing an SVG image.")
+    layoutCmd.addArgument(inputFileArg);
+    layoutCmd.addOption(algOption);
+    layoutCmd.addOption(outOption);
+    layoutCmd.option("-v --verbose", "Be verbose.", false);
+    layoutCmd.action((srcPath, opt) => {
+      const ext = extname(srcPath);
+      const lang = (() => {
+        switch(ext) {
+          case ".ts": return TypeScript.typescript;
+          case ".py": return Python;
+          case ".hs": return Haskell;
+          default:
+            console.error(`Unknown input file extension (${ext}). Exiting.`);
+            exit(1);
+        }
+      })();
+
+      const base = basename(srcPath, ext);
+      if(!opt.output) {
+        opt.output = base + ".svg";
+      }
+
+      if(opt.verbose) {
+        console.log(`Using ${lang.name} parser.`);
+      }
+
+      const algoStr = asAlgo(opt.algorithm);
+      const result = bench(srcPath, algoStr);
+
+      if(opt.verbose) {
+        console.log("mean horz mesh distance: ", result.meanHorzMeshDistance);
+        console.log("mean vert mesh distance: ", result.meanVertMeshDistance);
+        console.log("mean line width: ", result.meanLineWidth);
+        console.log("number of fragments: ", result.nFragments);
+        console.log("duration: ", fmtDuration(result.duration));
+      }
+
+      const svg = rb.toSVG(result.renderable, 10);
+      fs.writeFileSync(opt.output, svg);
+    });
   }
 
-  const ext = extname(values.input);
-  const lang = (() => {
-    switch(ext) {
-      case ".ts": return TypeScript.typescript;
-      case ".py": return Python;
-      case ".hs": return Haskell;
-      default:
-        console.error(`Unknown input file extension (${ext}). Exiting.`);
-        exit(1);
-    }
-  })();
+  program
+    .addCommand(benchCmd)
+    .addCommand(tableCmd)
+    .addCommand(layoutCmd);
 
-  const base = basename(values.input, ext);
-  if(!values.output) {
-    values.output = base + ".svg";
-  }
-
-  if(values.verbose) {
-    console.log(`Using ${lang.name} parser.`);
-  }
-
-  const algoStr = asAlgo(values.alg);
-  const result = bench(values.input, algoStr);
-
-  if(values.verbose) {
-    console.log("mean horz mesh distance: ", result.meanHorzMeshDistance);
-    console.log("mean vert mesh distance: ", result.meanVertMeshDistance);
-    console.log("mean line width: ", result.meanLineWidth);
-    console.log("number of fragments: ", result.nFragments);
-    console.log("duration: ", result.duration);
-  }
-
-  if(values.dumpHorzMeshDistances) {
-    console.log(result.horzMeshDistances.join(","));
-  }
-
-  if(values.dumpVerticalMeshDistances) {
-    console.log(result.vertMeshDistances.join(","));
-  }
-
-  const svg = rb.toSVG(result.renderable, 10);
-
-  fs.writeFileSync(values.output, svg);
+  program.parse();
 }
 
 main();
