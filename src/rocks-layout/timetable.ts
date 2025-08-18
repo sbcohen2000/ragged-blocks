@@ -2,8 +2,6 @@
  * The `Timetable` is a table with a column for each fragment in the
  * layout. Each row corresponds to a "time slice" in the layout.
  */
-
-import assert from "../assert";
 import { LayoutTree, Ann } from "../reassoc/layout-tree";
 import { Region, StackRef, regionFromStackRef } from "./region";
 
@@ -31,7 +29,7 @@ export function regionOfLayoutTree(layoutTree: LayoutTree<WithRegions>): Region 
   }
 }
 
-type Cell = {
+type BaseCell = {
   /**
    * A `uid` corresponding to a `Wrap` node in the `LayoutTree`.
    */
@@ -42,6 +40,8 @@ type Cell = {
   padding: number;
 };
 
+type Cell = BaseCell | number; // A reference to a different cell in the column.
+
 /**
  * The cell which is implicitly at the base of every column.
  */
@@ -51,30 +51,35 @@ type Column = Cell[];
 type ColumnOrSpacer = Column | null;
 
 /**
- * Return the topmost element of a column.
+ * Return the topmost element of a column, following references.
  *
  * @param column The column from which to get the topmost element.
+ * @param initialIndex The initial depth at which to start looking
+ * for the top of the column.
  * @returns The topmost element of the column.
  */
-function topOfColumn(column: Column): Cell {
-  if(column.length === 0) {
-    return BASE_CELL;
-  } else {
-    return column[column.length - 1];
+function topOfColumn(column: Column, initialIndex?: number): BaseCell {
+  let i = initialIndex ?? column.length - 1;
+  for(;;) {
+    const cell = column[i];
+    if(typeof cell === "number") {
+      i = cell;
+    } else {
+      return cell;
+    }
   }
 }
 
 /**
- * Fill a `Column` so that its depth is equal to `depth` by repeating
- * the topmost element. If the column is empty, repeat `null`.
+ * Fill a `Column` so that its depth is equal to `depth` by inserting
+ * references to the topmost element.
  *
  * @param column The column to fill.
  * @param depth The depth to fill `column` to.
  */
 function fillColumn(column: Column, depth: number) {
-  const top = topOfColumn(column);
-  const curDepth = column.length;
-  for(let i = curDepth; i < depth; ++i) {
+  const top = column.length - 1;
+  for(let i = column.length; i <= depth; ++i) {
     column.push(top);
   }
 }
@@ -87,11 +92,16 @@ function fillColumn(column: Column, depth: number) {
  */
 function wrapColumn(column: Column, padding: number, uid: number) {
   const top = topOfColumn(column);
-  const cell: Cell = {
-    padding: padding + top.padding,
-    uid
-  };
-  column.push(cell);
+  if(top.uid === uid) {
+    // Then update the existing entry.
+    top.padding += padding;
+  } else {
+    const cell: Cell = {
+      padding: padding + top.padding,
+      uid
+    };
+    column.push(cell);
+  }
 }
 
 export class Timetable {
@@ -134,7 +144,7 @@ export class Timetable {
         }
         case "Atom": {
           const index = columns.length;
-          columns.push([]);
+          columns.push([BASE_CELL]);
           return [0, { ...root, stackRef: { depth: 0, index } }];
         }
         case "JoinH":
@@ -161,8 +171,10 @@ export class Timetable {
               ...root,
               lhs,
               rhs,
-              region: { range: { begin, end },
-                depth: maxDepth }
+              region: {
+                range: { begin, end },
+                depth: maxDepth
+              }
             }];
         }
         case "Wrap": {
@@ -232,33 +244,6 @@ export class Timetable {
   }
 
   /**
-   * Retrieve the `Cell` at the given `StackRef`. Throws if the given
-   * `StackRef` points to a spacer.
-   *
-   * @param stackRef The `StackRef` to lookup.
-   * @returns The Cell at the given `index` and `depth`.
-   */
-  private getCell(stackRef: StackRef): Cell {
-    if(stackRef.depth === 0) return BASE_CELL;
-
-    const col = this.columns[stackRef.index];
-    assert(col !== undefined && col !== null);
-    assert(stackRef.depth <= col.length);
-    return col[stackRef.depth - 1];
-  }
-
-  /**
-   * Get the uid at a particular `StackRef`. Throws if the given
-   * column index points to a spacer.
-   *
-   * @param stackRef The `StackRef` to lookup.
-   * @returns The uid at the cell.
-   */
-  private getUid(stackRef: StackRef): number {
-    return this.getCell(stackRef).uid;
-  }
-
-  /**
    * Get the cumulative padding amount at a particular column index
    * and depth. Throws if the given column index points to a spacer.
    *
@@ -266,7 +251,7 @@ export class Timetable {
    * @returns The cumulative padding amount.
    */
   getPadding(stackRef: StackRef): number {
-    return this.getCell(stackRef).padding;
+    return topOfColumn(this.columns[stackRef.index]!, stackRef.depth).padding;
   }
 
   /**
@@ -278,7 +263,7 @@ export class Timetable {
    * at `index`.
    */
   getMaxPadding(index: number): number {
-    return this.getCell({ index, depth: this.maxDepth }).padding;
+    return this.getPadding({ index, depth: this.maxDepth });
   }
 
   /**
@@ -305,39 +290,27 @@ export class Timetable {
     // Traverse down the columns corresponding to `a` and `b`, finding
     // the maximum (i.e. highest number) depth at which the wraps of
     // `a` disagree with the wraps of `b`.
-    let aUid = this.getUid(a);
-    let bUid = this.getUid(b);
+    let aCell, bCell: Cell;
 
     while(a.depth > 0 && b.depth > 0) {
-      const aNext = { ...a, depth: a.depth - 1 };
-      const bNext = { ...b, depth: b.depth - 1 };
-      const aNextUid = this.getUid(aNext);
-      const bNextUid = this.getUid(bNext);
-
-      let stuck = true;
-      if(aUid === aNextUid) {
-        aUid = aNextUid;
-        a = aNext;
-        stuck = false;
+      aCell = this.columns[a.index]![a.depth]!;
+      if(typeof aCell === "number") {
+        a.depth = aCell;
+        continue;
       }
 
-      if(bUid === aNextUid) {
-        bUid = bNextUid;
-        b = bNext;
-        stuck = false;
+      bCell = this.columns[b.index]![b.depth]!;
+      if(typeof bCell === "number") {
+        b.depth = bCell;
+        continue;
       }
 
-      if(aUid === bUid) {
-        aUid = aNextUid;
-        a = aNext;
-        bUid = bNextUid;
-        b = bNext;
-        stuck = false;
-      }
-
-      if(stuck) {
+      if(aCell.uid !== bCell.uid) {
         break;
       }
+
+      --a.depth;
+      --b.depth;
     }
 
     const aAmt = this.getPadding(a);
@@ -358,7 +331,7 @@ export class Timetable {
    * Pretty print a representation of the `Timetable`.
    */
   dump() {
-    const rows = this.maxDepth;
+    const rows = this.maxDepth + 1;
     const cols = this.columns.length;
 
     let out: { [key: string]: { [key: number]: string } } = {};
@@ -373,7 +346,11 @@ export class Timetable {
           row[colNo] = "spacer";
         } else {
           const cell = col[rowNo];
-          row[colNo] = `${cell.padding} id=${cell.uid}`;
+          if(typeof cell === "number") {
+            row[colNo] = `ref(${cell})`;
+          } else {
+            row[colNo] = `${cell.padding} id=${cell.uid}`;
+          }
         }
       }
 
