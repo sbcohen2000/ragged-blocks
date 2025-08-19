@@ -1,34 +1,17 @@
-import * as react from "react";
 import * as rb from "ragged-blocks";
+import * as react from "react";
 import * as styles from "./root.module.css";
 import Button from "./button-component";
 import CodeMirror from "@uiw/react-codemirror";
 import Dropdown from "./dropdown-component";
 import HelpText from "./help-text";
-import LayoutView from "./layout-view";
-import parseExample from "../example-parser";
-
-import fontURL from "../Inconsolata-Medium.woff2";
 import LabeledCheckbox from "./labeled-checkbox-component";
+import LayoutView from "./layout-view";
+import Select from "./select-component";
 import Tooltip from "./tooltip-component";
-
-const DEFAULT_PROGRAM = `
-const [abs]@nm = [([x]@nm) =>
-  [[[x]@nm < 0]@e ? [-[x]@nm]@e
-        : [[x]@nm]@e]@e]@e
-
-@nm {
-  fill: #FAFA37;
-  border: 0 2;
-}
-
-@e {
-  padding: 2;
-  fill: #FA9D5A;
-  border: 0.7 2        #D27D46;
-  border: 0.7 1.3 -0.7 #FFCBA4 top right;
-}
-`;
+import fontURL from "../Inconsolata-Medium.woff2";
+import parseExample from "../example-parser";
+import { EXAMPLE_PROGRAMS } from "../example-programs";
 
 type FontLoadStatus = {
   done: boolean;
@@ -95,7 +78,7 @@ export default function Root() {
     { type: "Node", children: [], padding: 0 },
   );
   const [editorValue, setEditorValue] = react.useState<string>(
-    localStorage.getItem("editorValue") ?? DEFAULT_PROGRAM,
+    localStorage.getItem("editorValue") ?? EXAMPLE_PROGRAMS.abs,
   );
   const [statusText, setStatusText] = react.useState<string>("");
   const [parseError, setParseError] = react.useState<string>("");
@@ -164,6 +147,14 @@ export default function Root() {
     );
   }
 
+  function toggleLayout(algoName: rb.AlgorithmName) {
+    if(hasLayout(algoName)) {
+      removeLayout(algoName);
+    } else {
+      addLayout(algoName);
+    }
+  }
+
   // Re-render when the view initially loads.
   react.useEffect(() => {
     onChange(editorValue);
@@ -171,21 +162,33 @@ export default function Root() {
 
   return (
     <div>
+      <div className={styles.row}>
+        <span className={styles.label}>View on <a href={"https://github.com/sbcohen2000/ragged-blocks"}>GitHub</a></span>
+        <span className={styles.label}>v1.0.1</span>
+      </div>
+      <div className={styles.sectionLine}></div>
       <Dropdown isOpen={aboutOpen} onChange={setAboutOpen} label={"About"}>
-        <div className={styles.aboutTextContainer}>
-          <div className={styles.aboutTextSpacer}></div>
-          <p className={styles.aboutText}
-          >
-             This website is an interactive sandbox that accompanies our paper, <a href={"https://arxiv.org/pdf/2507.06460"}><em>Ragged Blocks: Rendering Structured Text with Style</em></a>. It implements all of the algorithms that we benchmarked in the paper, and offers a way to visualize how each algorithm renders a layout tree of the reader's choice.
-            <br/>
-            <br/>
-                   See the below <em>Syntax Guide</em> for instructions on how to construct your own examples.
-          </p>
-        </div>
+        <p className={styles.aboutText}>
+          This website is an interactive sandbox that accompanies our paper, <a href={"https://arxiv.org/pdf/2507.06460"}><em>Ragged Blocks: Rendering Structured Text with Style</em></a>. It implements all of the algorithms that we benchmarked in the paper, and offers a way to visualize how each algorithm renders a layout tree of the reader's choice.
+          <br/>
+          <br/>
+          See the below <em>Syntax Guide</em> for instructions on how to construct your own examples. Type into the <em>Playground</em> to construct examples, and compare the outputs of different layout algorithms.
+        </p>
       </Dropdown>
+      <div className={styles.sectionLine}></div>
       <Dropdown isOpen={helpOpen} onChange={setHelpOpen} label={"Syntax Guide"}>
         <HelpText measure={measure}/>
       </Dropdown>
+      <div className={styles.sectionLine}></div>
+      <div className={styles.row}>
+        <span className={styles.playgroundLabel}>Playground</span>
+        <span>
+          <span className={styles.label}>Load example: </span>
+          <Select<keyof (typeof EXAMPLE_PROGRAMS)>
+            options={Object.keys(EXAMPLE_PROGRAMS) as (keyof (typeof EXAMPLE_PROGRAMS))[]}
+            onSelectionChanged={option => onChange(EXAMPLE_PROGRAMS[option])}/>
+        </span>
+      </div>
       <CodeMirror value={editorValue} onChange={onChange} />
       {
         parseError !== ""
@@ -194,30 +197,17 @@ export default function Root() {
             </div>
           : <></>
       }
-      <div className={styles.infoContainer}>
+      <div className={styles.row}>
         <span className={styles.label}>{statusText}</span>
-        <span>
-          <Tooltip>
-            <div className={styles.tooltipContent}>
-              If enabled, layout and SVG generation will be scheduled on a Web Worker, rather than on the main thread. This permits multiple algorithms to layout in parallel.
-            </div>
-            <LabeledCheckbox
-              checked={useWebWorkers}
-              onChange={onOff => setUseWebWorkers(onOff)}
-              label={"Use web workers for layout"}/>
-          </Tooltip>
-          <span style={{ display: "inline-block", width: "4px" }}></span>
-          <Tooltip>
-            <div className={styles.tooltipContent}>
-              Restore the editor text to the default example program.
-            </div>
-            <Button
-              onClick={() => onChange(DEFAULT_PROGRAM)}
-              style={{ fontSize: "0.7em" }}
-              label={"Reset Editor"}
-            />
-          </Tooltip>
-        </span>
+        <Tooltip>
+          <div className={styles.tooltipContent}>
+            If enabled, layout and SVG generation will be scheduled on a Web Worker, rather than on the main thrd. This permits multiple algorithms to layout in parallel.
+          </div>
+          <LabeledCheckbox
+            checked={useWebWorkers}
+            onChange={onOff => setUseWebWorkers(onOff)}
+            label={"Use web workers for layout"}/>
+        </Tooltip>
       </div>
       <div className={styles.compareButtonsCluster}>
         <span className={styles.label}>
@@ -232,8 +222,8 @@ export default function Root() {
             </div>
             <Button
               label={"L1P"}
-              onClick={() => addLayout("L1P")}
-              disabled={hasLayout("L1P")}
+              onClick={() => toggleLayout("L1P")}
+              enabled={hasLayout("L1P")}
             />
           </Tooltip>
           <Tooltip>
@@ -242,8 +232,8 @@ export default function Root() {
             </div>
             <Button
               label={"L1S+"}
-              onClick={() => addLayout("L1S+")}
-              disabled={hasLayout("L1S+")}
+              onClick={() => toggleLayout("L1S+")}
+              enabled={hasLayout("L1S+")}
             />
           </Tooltip>
           <Tooltip>
@@ -252,8 +242,8 @@ export default function Root() {
             </div>
             <Button
               label={"Blocks"}
-              onClick={() => addLayout("Blocks")}
-              disabled={hasLayout("Blocks")}
+              onClick={() => toggleLayout("Blocks")}
+              enabled={hasLayout("Blocks")}
             />
           </Tooltip>
           <Tooltip>
@@ -262,8 +252,8 @@ export default function Root() {
             </div>
             <Button
               label={"S-Blocks"}
-              onClick={() => addLayout("S-Blocks")}
-              disabled={hasLayout("S-Blocks")}
+              onClick={() => toggleLayout("S-Blocks")}
+              enabled={hasLayout("S-Blocks")}
             />
           </Tooltip>
         </div>
@@ -276,7 +266,6 @@ export default function Root() {
               layoutTree={layoutTree}
               algoName={algoName}
               measure={measure}
-              onRemoveLayoutPressed={removeLayout}
               useWebWorkers={useWebWorkers}
             />
           ))]

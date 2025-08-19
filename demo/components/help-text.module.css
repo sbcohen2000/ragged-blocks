@@ -1,28 +1,37 @@
 .helpTextRoot {
+    column-gap: 4px;
     display: flex;
-    justify-content: space-between;
     flex-direction: row;
-    align-items: flex-start;
 }
 
 .helpTextLayout {
+    /* This item isn't allowed to shrink! */
+    flex-shrink: 0;
     top: 20px;
     position: sticky;
 }
 
+.helpTextVerticalLine {
+    /* This item isn't allowed to shrink! */
+    flex-shrink: 0;
+    width: 1px;
+    background-color: black;
+}
+
 .textColumn {
-    max-width: 400px;
     display: flex;
     flex-direction: column;
+    max-width: 600px;
 }
 
 .textSection {
+    padding-left: 2px;
+    border-left: 4px solid white;
     cursor: pointer;
 }
 
 .selected {
     border-left: 4px solid steelblue;
-    padding-left: 2px;
     background-color: #eee;
 }
 

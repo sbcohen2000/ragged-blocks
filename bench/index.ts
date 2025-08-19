@@ -1,4 +1,5 @@
 import * as rb from "ragged-blocks";
+import * as readline from "node:readline/promises";
 import Haskell from "tree-sitter-haskell";
 import Python from "tree-sitter-python";
 import TypeScript from "tree-sitter-typescript";
@@ -6,7 +7,29 @@ import fs from "node:fs";
 import { basename, extname } from "node:path";
 import { exit } from "node:process";
 import { parse, ParseSettings } from "ts-compat";
-import { parseArgs } from "node:util";
+import { program, Command, Argument, Option } from "commander";
+
+/**
+ * Produce a human readable string representing the given time in
+ * seconds.
+ *
+ * @param duration The duration in seconds.
+ * @returns A human readable string representing the duration.
+ */
+function fmtDuration(duration: number) {
+  let unit = "seconds";
+  if(duration < 0.1) {
+    unit = "milliseconds";
+    duration *= 1000;
+  }
+
+  const format = Intl.NumberFormat(undefined, {
+    minimumSignificantDigits: 4,
+    maximumSignificantDigits: 8,
+  });
+
+  return `${format.format(duration)} ${unit}`;
+}
 
 function countDigits(s: string): [number, number] {
   const beforePoint = s.indexOf(".");
@@ -152,16 +175,17 @@ type BenchResult = {
   renderable: rb.Render;
 }
 
-type Algo = "Unstyled" | "L1S" | "L1P" | "SBlock" | "BoxesNS" | "Boxes";
+type Algo = "Unstyled" | "L1S" | "L1S+" | "L1P" | "S-Blocks" | "BlocksNS" | "Blocks";
 
 function asAlgo(text: string): Algo {
   switch(text) {
     case "Unstyled":
     case "L1S":
+    case "L1S+":
     case "L1P":
-    case "SBlock":
-    case "BoxesNS":
-    case "Boxes": return text;
+    case "S-Blocks":
+    case "BlocksNS":
+    case "Blocks": return text;
     default:
       throw new Error(`Unknown layout algorithm (${text}). Exiting.`);
   }
@@ -172,9 +196,10 @@ function algoContrOfAlgoStr(algoStr: Algo): rb.Layout {
     case "Unstyled":
     case "L1P": return new rb.PebbleLayout(new rb.PebbleLayoutSettings(20));
     case "L1S": return new rb.RocksLayout(new rb.RocksLayoutSettings(20));
-    case "SBlock": return new rb.SBlocksLayout(new rb.SBlocksLayoutSettings(20));
-    case "BoxesNS":
-    case "Boxes": return new rb.BlocksLayout(new rb.BlocksLayoutSettings());
+    case "L1S+": return new rb.OutlinedRocksLayout(new rb.OutlinedRocksLayoutSettings(20, false));
+    case "S-Blocks": return new rb.SBlocksLayout(new rb.SBlocksLayoutSettings(20));
+    case "BlocksNS":
+    case "Blocks": return new rb.BlocksLayout(new rb.BlocksLayoutSettings());
     default:
       throw new Error(`Unknown layout algorithm (${algoStr}). Exiting.`);
   }
@@ -197,7 +222,7 @@ function measureRuntime(srcPath: string, algoStr: Algo, iters: number): number {
   const lang = langOfSrcPath(srcPath);
 
   const settings: ParseSettings = {
-    useSpacers: algoStr !== "BoxesNS",
+    useSpacers: algoStr !== "BlocksNS",
     breakMultiLineAtoms: ext === ".py",
   };
 
@@ -224,7 +249,7 @@ function bench(srcPath: string, algoStr: Algo): BenchResult {
   const lang = langOfSrcPath(srcPath);
 
   const settings: ParseSettings = {
-    useSpacers: algoStr !== "BoxesNS",
+    useSpacers: algoStr !== "BlocksNS",
     breakMultiLineAtoms: ext === ".py",
   };
 
@@ -252,8 +277,6 @@ function bench(srcPath: string, algoStr: Algo): BenchResult {
   const testResult = testAlgo.layout(testTreeWithMeasurements);
   const endTime = performance.now();
   const duration = (endTime - startTime) / 1000; // seconds
-
-  console.log(`Finished layout in ${duration} seconds.`);
 
   const testMesh = rb.MeshDistanceMesh.fromFragments(testResult);
   const meanLineWidth = testMesh.meanLineWidth();
@@ -288,7 +311,7 @@ function bench(srcPath: string, algoStr: Algo): BenchResult {
 
 
 function benchAll(srcPath: string): Map<Algo, BenchResult> {
-  const algos: Algo[] = ["Unstyled", "L1P", "L1S", "SBlock", "BoxesNS", "Boxes"];
+  const algos: Algo[] = ["Unstyled", "L1P", "L1S", "S-Blocks", "BlocksNS", "Blocks"];
   let out: Map<Algo, BenchResult> = new Map();
   for(const algo of algos) {
     const result = bench(srcPath, algo);
@@ -376,7 +399,7 @@ function mkErrorTables(forLaTeX: boolean) {
   for(const srcPath of srcPaths) {
     let rowData = data.get(srcPath)!;
 
-    const refLineLength = rowData.get("BoxesNS")!.meanLineWidth;
+    const refLineLength = rowData.get("BlocksNS")!.meanLineWidth;
 
     const row = [
       basename(srcPath),
@@ -387,14 +410,14 @@ function mkErrorTables(forLaTeX: boolean) {
       rowData.get("L1S")!.meanLineWidth,
       rowData.get("L1S")!.meanLineWidth / refLineLength,
 
-      rowData.get("SBlock")!.meanLineWidth,
-      rowData.get("SBlock")!.meanLineWidth / refLineLength,
+      rowData.get("S-Blocks")!.meanLineWidth,
+      rowData.get("S-Blocks")!.meanLineWidth / refLineLength,
 
-      rowData.get("BoxesNS")!.meanLineWidth,
-      rowData.get("BoxesNS")!.meanLineWidth / refLineLength,
+      rowData.get("BlocksNS")!.meanLineWidth,
+      rowData.get("BlocksNS")!.meanLineWidth / refLineLength,
 
-      rowData.get("Boxes")!.meanLineWidth,
-      rowData.get("Boxes")!.meanLineWidth / refLineLength,
+      rowData.get("Blocks")!.meanLineWidth,
+      rowData.get("Blocks")!.meanLineWidth / refLineLength,
     ];
 
     lineWidth.push(row);
@@ -426,25 +449,25 @@ function mkErrorTables(forLaTeX: boolean) {
   for(const srcPath of srcPaths) {
     let rowData = data.get(srcPath)!;
 
-    const refHorzMeshDistance = rowData.get("BoxesNS")!.meanHorzMeshDistance;
-    const refVertMeshDistance = rowData.get("BoxesNS")!.meanVertMeshDistance;
+    const refHorzMeshDistance = rowData.get("BlocksNS")!.meanHorzMeshDistance;
+    const refVertMeshDistance = rowData.get("BlocksNS")!.meanVertMeshDistance;
 
     const row = [
       basename(srcPath),
 
       rowData.get("L1S")!.meanHorzMeshDistance,
       rowData.get("L1S")!.meanHorzMeshDistance / refHorzMeshDistance,
-      rowData.get("SBlock")!.meanHorzMeshDistance,
-      rowData.get("SBlock")!.meanHorzMeshDistance / refHorzMeshDistance,
-      rowData.get("BoxesNS")!.meanHorzMeshDistance,
-      rowData.get("BoxesNS")!.meanHorzMeshDistance / refHorzMeshDistance,
+      rowData.get("S-Blocks")!.meanHorzMeshDistance,
+      rowData.get("S-Blocks")!.meanHorzMeshDistance / refHorzMeshDistance,
+      rowData.get("BlocksNS")!.meanHorzMeshDistance,
+      rowData.get("BlocksNS")!.meanHorzMeshDistance / refHorzMeshDistance,
 
       rowData.get("L1S")!.meanVertMeshDistance,
       rowData.get("L1S")!.meanVertMeshDistance / refVertMeshDistance,
-      rowData.get("SBlock")!.meanVertMeshDistance,
-      rowData.get("SBlock")!.meanVertMeshDistance / refVertMeshDistance,
-      rowData.get("BoxesNS")!.meanVertMeshDistance,
-      rowData.get("BoxesNS")!.meanVertMeshDistance / refVertMeshDistance,
+      rowData.get("S-Blocks")!.meanVertMeshDistance,
+      rowData.get("S-Blocks")!.meanVertMeshDistance / refVertMeshDistance,
+      rowData.get("BlocksNS")!.meanVertMeshDistance,
+      rowData.get("BlocksNS")!.meanVertMeshDistance / refVertMeshDistance,
     ];
 
     meshDistance.push(row);
@@ -470,114 +493,107 @@ function mkErrorTables(forLaTeX: boolean) {
   }));
 }
 
-function main() {
-  const { values } = parseArgs({
-    options: {
-      dumpHorzMeshDistances: {
-        type: "boolean",
-        default: false,
-      },
-      dumpVerticalMeshDistances: {
-        type: "boolean",
-        default: false,
-      },
-      mkPerfTable: {
-        type: "boolean",
-        default: false,
-      },
-      mkErrorTables: {
-        type: "boolean",
-        default: false,
-      },
-      forLaTeX: {
-        type: "boolean",
-        default: false,
-      },
-      verbose: {
-        type: "boolean",
-        default: false,
-        short: "v",
-      },
-      pprintLayoutTree: {
-        type: "boolean",
-        default: false,
-      },
-      input: {
-        type: "string",
-        short: "i",
-      },
-      output: {
-        type: "string",
-        short: "o",
-      },
-      alg: {
-        type: "string",
-        short: "a",
-        default: "L1S"
+async function main() {
+  const inputFileArg = new Argument("<input file>", "The input source file to layout.");
+  const algOption = new Option("-a --algorithm <string>", "The algorithm to use for layout.").default("L1S");
+  const outOption = new Option("-o --output <string>", "The name of the output file to write.");
+
+  const benchCmd = new Command("bench");
+  {
+    benchCmd.description("Benchmark a layout algorithm, running it multiple times but emitting no output files.");
+    benchCmd.option("-i --iters <number>", "The number of iterations to run.", "10");
+    benchCmd.option("--wait", "Block until the program receives a line from STDIN before proceeding.", false)
+    benchCmd.addArgument(inputFileArg);
+    benchCmd.addOption(algOption);
+    benchCmd.action(async (srcPath, opts) => {
+      if(opts.wait) {
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        await rl.question("Waiting for input...");
+        rl.close();
       }
-    }
-  });
 
-  if(values.mkErrorTables || values.mkPerfTable) {
-    if(values.mkErrorTables) {
-      mkErrorTables(values.forLaTeX);
-    }
-
-    if(values.mkPerfTable) {
-      mkPerfTable(values.forLaTeX);
-    }
-
-    exit(0);
+      const duration = measureRuntime(srcPath, opts.algorithm, opts.iters);
+      console.log(`Finished layout in ${fmtDuration(duration)} (average of ${opts.iters} iterations).`);
+    });
   }
 
-  if(!values.input) {
-    console.error("No input file supplied. Exiting.");
-    exit(1);
+  const tableCmd = new Command("gen");
+  {
+    tableCmd.description("Generate benchmark tables.");
+    const latexOption = new Option("--LaTeX", "Format the tables using LaTeX syntax.").default(false);
+
+    const perfCmd = new Command("perfTable");
+    perfCmd.addOption(latexOption);
+    perfCmd.description("Generate a performance benchmark.");
+    perfCmd.action(opt => {
+      mkPerfTable(opt.LaTeX);
+    });
+    tableCmd.addCommand(perfCmd);
+
+    const errorCmd = new Command("errorTables");
+    errorCmd.addOption(latexOption);
+    errorCmd.description("Generate an error benchmark.");
+    errorCmd.action(opt => {
+      mkErrorTables(opt.LaTeX);
+    });
+    tableCmd.addCommand(errorCmd);
   }
 
-  const ext = extname(values.input);
-  const lang = (() => {
-    switch(ext) {
-      case ".ts": return TypeScript.typescript;
-      case ".py": return Python;
-      case ".hs": return Haskell;
-      default:
-        console.error(`Unknown input file extension (${ext}). Exiting.`);
-        exit(1);
-    }
-  })();
+  const layoutCmd = new Command("layout");
+  {
+    layoutCmd.description("Run a layout algorithm, producing an SVG image.")
+    layoutCmd.addArgument(inputFileArg);
+    layoutCmd.addOption(algOption);
+    layoutCmd.addOption(outOption);
+    layoutCmd.option("-v --verbose", "Be verbose.", false);
+    layoutCmd.action((srcPath, opt) => {
+      const ext = extname(srcPath);
+      const lang = (() => {
+        switch(ext) {
+          case ".ts": return TypeScript.typescript;
+          case ".py": return Python;
+          case ".hs": return Haskell;
+          default:
+            console.error(`Unknown input file extension (${ext}). Exiting.`);
+            exit(1);
+        }
+      })();
 
-  const base = basename(values.input, ext);
-  if(!values.output) {
-    values.output = base + ".svg";
+      const base = basename(srcPath, ext);
+      if(!opt.output) {
+        opt.output = base + ".svg";
+      }
+
+      if(opt.verbose) {
+        console.log(`Using ${lang.name} parser.`);
+      }
+
+      const algoStr = asAlgo(opt.algorithm);
+      const result = bench(srcPath, algoStr);
+
+      if(opt.verbose) {
+        console.log("mean horz mesh distance: ", result.meanHorzMeshDistance);
+        console.log("mean vert mesh distance: ", result.meanVertMeshDistance);
+        console.log("mean line width: ", result.meanLineWidth);
+        console.log("number of fragments: ", result.nFragments);
+        console.log("duration: ", fmtDuration(result.duration));
+      }
+
+      const svg = rb.toSVG(result.renderable, 10);
+      fs.writeFileSync(opt.output, svg);
+    });
   }
 
-  if(values.verbose) {
-    console.log(`Using ${lang.name} parser.`);
-  }
+  program
+    .addCommand(benchCmd)
+    .addCommand(tableCmd)
+    .addCommand(layoutCmd);
 
-  const algoStr = asAlgo(values.alg);
-  const result = bench(values.input, algoStr);
-
-  if(values.verbose) {
-    console.log("mean horz mesh distance: ", result.meanHorzMeshDistance);
-    console.log("mean vert mesh distance: ", result.meanVertMeshDistance);
-    console.log("mean line width: ", result.meanLineWidth);
-    console.log("number of fragments: ", result.nFragments);
-    console.log("duration: ", result.duration);
-  }
-
-  if(values.dumpHorzMeshDistances) {
-    console.log(result.horzMeshDistances.join(","));
-  }
-
-  if(values.dumpVerticalMeshDistances) {
-    console.log(result.vertMeshDistances.join(","));
-  }
-
-  const svg = rb.toSVG(result.renderable, 10);
-
-  fs.writeFileSync(values.output, svg);
+  program.parse();
 }
 
 main();

@@ -6,6 +6,7 @@
         "bench": "npx tsx index.ts"
     },
     "dependencies": {
+        "commander": "^14.0.0",
         "ragged-blocks": "file:../",
         "tree-sitter": "^0.21.0",
         "tree-sitter-haskell": "^0.23.1",

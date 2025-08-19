@@ -78,12 +78,6 @@ function pKeyword<A extends string>(s: A): Parsimmon.Parser<A> {
   return Parsimmon.string(s).skip(Parsimmon.optWhitespace);
 }
 
-const pColor: Parsimmon.Parser<string> =
-      Parsimmon.alt(
-        Parsimmon.regexp(/#[\da-f]+/i),
-        pName
-      ).skip(Parsimmon.optWhitespace);
-
 const pNumber: Parsimmon.Parser<number> =
       Parsimmon.seq(
         Parsimmon.string("-").atMost(1),
@@ -92,6 +86,20 @@ const pNumber: Parsimmon.Parser<number> =
         Parsimmon.digits.skip(Parsimmon.optWhitespace),
       ).map(([s, l, dp, r]) => parseFloat(s + l + dp.join("") + r))
         .assert(n => !isNaN(n), "number");
+
+const pRGBAColor: Parsimmon.Parser<string> =
+      Parsimmon.seq(
+        pKeyword("rgba("),
+        pNumber.times(4),
+        pKeyword(")")
+      ).map(strings => strings.join(""));
+
+const pColor: Parsimmon.Parser<string> =
+      Parsimmon.alt(
+        Parsimmon.regexp(/#[\da-f]+/i),
+        pRGBAColor,
+        pName
+      ).skip(Parsimmon.optWhitespace);
 
 function pKeyValuePair<A, B>(k: Parsimmon.Parser<A>, v: Parsimmon.Parser<B>): Parsimmon.Parser<[A, B]> {
   return Parsimmon.seq(

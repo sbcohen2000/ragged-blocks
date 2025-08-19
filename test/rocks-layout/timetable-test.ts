@@ -105,3 +105,28 @@ test("Get get spaceBetween a wrapped rectangle and a spacer.", () => {
   const [a, b] = refs;
   expect(tt.spaceBetween(a, b)).toStrictEqual([0, 0]);
 });
+
+test("Can get the maximum padding of an unwrapped rectangle.", () => {
+  const t = atom();
+
+  const [tt, _] = Timetable.fromLayoutTree(t);
+  const refs = [...tt.enumerateIndices()];
+
+  const [a] = refs;
+  expect(tt.getMaxPadding(a)).toBe(0);
+});
+
+test("Can get the maximum padding of several wrapped rectangles.", () => {
+  const t = joinv(
+    wrap(joinh(atom(), atom())),
+    wrap(wrap(wrap(atom()))),
+  );
+
+  const [tt, _] = Timetable.fromLayoutTree(t);
+  const refs = [...tt.enumerateIndices()];
+
+  const [a, b, c] = refs;
+  expect(tt.getMaxPadding(a)).toBe(4);
+  expect(tt.getMaxPadding(b)).toBe(4);
+  expect(tt.getMaxPadding(c)).toBe(12);
+});

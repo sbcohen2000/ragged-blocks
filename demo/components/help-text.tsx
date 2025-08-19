@@ -162,17 +162,11 @@ export default function HelpText(props: HelpTextProps) {
 
   return (
     <div className={styles.helpTextRoot}>
-      <div className={styles.helpTextLayout}>
-        <LayoutView
-          layoutTree={exampleLayoutTree}
-          algoName={"L1S+"}
-          measure={props.measure}/>
-      </div>
       <div className={styles.textColumn}>
-        <p>
-          <em>Click on a paragraph to see the corresponding layout.</em>
-        </p>
-        <div className={styles.textSection}>
+        <div>
+          <p style={{paddingLeft: "6px"}}>
+            <em>Click on a paragraph to see the corresponding layout.</em>
+          </p>
           <p className={
             styles.textSection
               + (phase === 0 ? ` ${styles.selected}` : "")}
@@ -251,6 +245,13 @@ export default function HelpText(props: HelpTextProps) {
              Finally, the border property can be followed by any of the keywords <code>top</code>, <code>bottom</code>, <code>left</code>, or <code>right</code>, which control which sides of the border are rendered. Of course, there's no accounting for taste.
           </p>
         </div>
+      </div>
+      <div className={styles.helpTextVerticalLine}></div>
+      <div className={styles.helpTextLayout}>
+        <LayoutView
+          layoutTree={exampleLayoutTree}
+          algoName={"L1S+"}
+          measure={props.measure}/>
       </div>
     </div>
   );

@@ -35,13 +35,11 @@
 }
 
 .aboutText {
-    max-width: 400px;
+    padding-left: 6px;
+    max-width: 600px;
 }
 
-.aboutTextSpacer {
-}
-
-.infoContainer {
+.row {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -82,4 +80,18 @@
     font-size: 0.7em;
     font-family: sans-serif;
     max-width: 200px;
+}
+
+.playgroundLabel {
+    /* Styled to be visually consistent with a Button component. */
+    padding-left: 4px;
+    font-family: sans-serif;
+}
+
+.sectionLine {
+    background-color: black;
+    height: 1px;
+    margin-bottom: 4px;
+    margin-top: 4px;
+    width: 100%;
 }

@@ -17,7 +17,6 @@ interface LayoutViewProps<A extends rb.AlgorithmName> {
   algoName: A;
   measure: (text: string) => rb.Rect;
   useWebWorkers?: boolean;
-  onRemoveLayoutPressed?: (algoName: A) => void;
 }
 
 /**
@@ -157,18 +156,6 @@ export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutView
     <div className={styles.layoutContainer} key={props.algoName}>
       <div className={styles.upperHalf}>
         <div className={styles.buttonColumn}>
-          { props.onRemoveLayoutPressed !== undefined
-            ? <Tooltip>
-                <div className={styles.tooltipContent}>
-                  Remove this layout.
-                </div>
-                <Button
-                  label={""}
-                  icon={faCircleMinus}
-                  onClick={() => props.onRemoveLayoutPressed!(props.algoName)}/>
-              </Tooltip>
-            : <></>
-          }
           <Tooltip>
             <div className={styles.tooltipContent}>
               Download this layout as an SVG.
