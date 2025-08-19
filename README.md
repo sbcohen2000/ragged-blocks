@@ -43,7 +43,7 @@ The benchmark suite is composed of 6 source files which are hosted on GitHub. He
 ### Dependencies
 
 The below is a list of each dependency, and why each is required.
-There are two run-time dependency of the library:
+There is one run-time dependency of the library:
 - **@sbcohen/containers** implements some useful container datastructures. In particular, we care about the `IntervalTree`.
 
 The remaining dependencies are just needed for development:
@@ -52,5 +52,6 @@ The remaining dependencies are just needed for development:
 - **sharp** is used to convert SVGs to PNGs in tests.
 - **ts-jest** allows jest tests to be written in TypeScript as opposed to JavaScript.
 - **tsx** allows `node` to run TypeScript source files.
+- **typescript** is the TypeScript language compiler.
 
 The demo program additionally depends on **webpack** and friends to generate a bundle.
