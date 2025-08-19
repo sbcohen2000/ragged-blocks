@@ -164,7 +164,7 @@ export default function Root() {
     <div>
       <div className={styles.row}>
         <span className={styles.label}>View on <a href={"https://github.com/sbcohen2000/ragged-blocks"}>GitHub</a></span>
-        <span className={styles.label}>v1.0.0</span>
+        <span className={styles.label}>v1.0.1</span>
       </div>
       <div className={styles.sectionLine}></div>
       <Dropdown isOpen={aboutOpen} onChange={setAboutOpen} label={"About"}>
