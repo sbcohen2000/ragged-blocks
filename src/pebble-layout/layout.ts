@@ -384,7 +384,7 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
         continue;
       }
 
-      const padding = stack.cells[stack.cells.length - 1].padding ?? 0;
+      const padding = stack.cells[stack.cells.length - 1]?.padding ?? 0;
       const rect = inflate(stack.rect, padding);
 
       if(bbox === null) {
