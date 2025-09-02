@@ -3,8 +3,9 @@ import * as rlt from "../reassoc/layout-tree";
 import reassocLayoutTree from "../reassoc/reassoc-layout-tree";
 import { FragmentsInfo, FragmentInfo } from "../layout-tree";
 import { Svg, Render, SVGStyle } from "../render";
-import { ViewSettings, SettingView, NumberSettingView } from "../settings";
+import { ViewSettings, SettingView, NumberSettingView, ToggleSettingView } from "../settings";
 import { add, Vector } from "../vector";
+import { addVector, subPoints, Point } from "../point";
 import { horizontallyOverlap, inflate, Rect, translate, width, height, union } from "../rect";
 
 type Cell = {
@@ -172,10 +173,36 @@ function leadingRegion(a: Region, b: Region): number {
   return maxOffset;
 }
 
+/**
+ * A `Region` with an advance vector and an origin.
+ */
 type RegionWithAdvance = {
-  region: Region;
+  /**
+   * A vector pointing from the origin to the point at which new
+   * regions should be attached.
+   */
   advance: Vector;
+  /**
+   * The point, when added with `advance`, yields the point at which
+   * new regions should be attached.
+   */
+  origin: Point;
+  /**
+   * The region itself.
+   */
+  region: Region;
 };
+
+/**
+ * Calculate the lead-out point (the origin plus the advance) of a
+ * region.
+ *
+ * @param region The region whose lead-out point to calculate.
+ * @returns The lead-out point.
+ */
+function leadOutPoint(region: RegionWithAdvance): Point {
+  return addVector(region.origin, region.advance);
+}
 
 /**
  * Translate a `RegionWithAdvance` by the vector `v`.
@@ -184,6 +211,7 @@ type RegionWithAdvance = {
  * @param v The vector by which to translate `stack`.
  */
 function translateRegionWithAdvance(region: RegionWithAdvance, v: Vector) {
+  region.origin = addVector(region.origin, v);
   translateRegion(region.region, v);
 }
 
@@ -193,11 +221,22 @@ function translateRegionWithAdvance(region: RegionWithAdvance, v: Vector) {
  * @param region The `RegionWithAdvance` to modify.
  * @param uid The `uid` of the corresponding layout tree node.
  * @param padding The amount of padding to apply.
+ * @param translate Should we translate the underlying region when
+ * wrapping? (A value of `false` corresponds to algorithm G1 as
+ * discussed in the paper).
  */
-function wrapRegionWithAdvance(region: RegionWithAdvance, uid: number, padding: number) {
+function wrapRegionWithAdvance(region: RegionWithAdvance, uid: number, padding: number, translate: boolean) {
   region.advance = add(region.advance, { dx: 2 * padding, dy: 0 });
   wrapRegion(region.region, uid, padding);
-  translateRegion(region.region, { dx: padding, dy: 0 });
+  if(translate) {
+    // Note that here we _do not_ use `translateRegionWithAdvance`,
+    // since we don't want to move the region's origin. (We avoid
+    // moving the origin by instead translating the region's
+    // constituent rectangles).
+    translateRegion(region.region, { dx: padding, dy: 0 });
+  } else {
+    region.origin = addVector(region.origin, { dx: -padding, dy: 0 });
+  }
 }
 
 /**
@@ -207,7 +246,7 @@ function wrapRegionWithAdvance(region: RegionWithAdvance, uid: number, padding: 
  * @param b The region which will be added to `a`.
  */
 function extendRegionWithAdvance(a: RegionWithAdvance, b: RegionWithAdvance) {
-  a.advance = add(a.advance, b.advance);
+  a.advance = subPoints(leadOutPoint(b), a.origin)
   a.region.push(...b.region);
 }
 
@@ -219,10 +258,13 @@ type L1p = RegionWithAdvance[];
  * @param layout The `Layout` to modify.
  * @param uid The `uid` of the corresponding layout tree node.
  * @param padding The amount of padding to apply.
+ * @param translate Should we translate the layout when wrapping? (A
+ * value of `false` corresponds to algorithm G1 as discussed in the
+ * paper).
  */
-function wrapLayout(layout: L1p, uid: number, padding: number) {
+function wrapLayout(layout: L1p, uid: number, padding: number, translate: boolean) {
   for(const line of layout) {
-    wrapRegionWithAdvance(line, uid, padding);
+    wrapRegionWithAdvance(line, uid, padding, translate);
   }
 }
 
@@ -239,7 +281,10 @@ function extendH(a: L1p, b: L1p) {
   const lastOfA = a[a.length - 1];
   const firstOfB = b[0];
 
-  translateRegionWithAdvance(firstOfB, lastOfA.advance);
+  // Find a vector, `v`, which translates `firstOfB`'s origin to the
+  // lead-out point of `lastOfA`.
+  const v = subPoints(leadOutPoint(lastOfA), firstOfB.origin);
+  translateRegionWithAdvance(firstOfB, v);
   extendRegionWithAdvance(lastOfA, firstOfB);
 
   a.push(...b.slice(1));
@@ -266,6 +311,7 @@ function layoutFromRect(r: Rect, text: string): L1p {
   return [
     {
       region: [{ type: "Stack", cells: [], rect: r, text }],
+      origin: { x: 0, y: 0 },
       advance: { dx: width(r), dy: 0 }
     }
   ];
@@ -281,6 +327,7 @@ function layoutFromSpacer(w: number): L1p {
   return [
     {
       region: [{ type: "Spacer", width: w }],
+      origin: { x: 0, y: 0 },
       advance: { dx: w, dy: 0 }
     }
   ];
@@ -419,20 +466,23 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
 }
 
 export class PebbleLayoutSettings implements ViewSettings {
+  public translateWraps: boolean;
   public idealLeading: number;
 
-  constructor(idealLeading: number) {
+  constructor(translateWraps: boolean, idealLeading: number) {
+    this.translateWraps = translateWraps;
     this.idealLeading = idealLeading;
   }
 
   viewSettings(): SettingView[] {
     return [
+      ToggleSettingView.new("translateWraps", this, "Translate wraps"),
       NumberSettingView.new("idealLeading", this, "Ideal leading"),
     ]
   }
 
   clone() {
-    return new PebbleLayoutSettings(this.idealLeading);
+    return new PebbleLayoutSettings(this.translateWraps, this.idealLeading);
   }
 }
 
@@ -478,7 +528,7 @@ export default class PebbleLayout implements alt.Layout {
             uidToColor.set(uid, root.sty.fill);
           }
           const layout = go(root.child);
-          wrapLayout(layout, uid, root.padding);
+          wrapLayout(layout, uid, root.padding, this.settings.translateWraps);
           return layout;
         }
       }

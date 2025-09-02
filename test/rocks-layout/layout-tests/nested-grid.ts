@@ -1,10 +1,3 @@
-import { LayoutTree, WithMeasurements, atom, newline, node } from "../../layout-tree-utils";
+import { _layoutTree } from "./nested-grid-common";
 
-export const layoutTree: LayoutTree<WithMeasurements> =
-             node([
-               node([atom(10, 10)], 10, "yellow"),
-               newline(),
-               node([node([atom(10, 10)], 10, "magenta"), atom(10, 10)], 10, "orange"),
-               newline(),
-               node([node([node([atom(10, 10)], 10, "blue"), atom(10, 10)], 10, "green"), atom(10, 10)], 10, "red"),
-             ]);
+export const layoutTree = _layoutTree;

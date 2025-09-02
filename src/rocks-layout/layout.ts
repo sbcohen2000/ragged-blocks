@@ -10,6 +10,7 @@ import { Region, EMPTY, joinRegions, enumerateIndices, regionFromStackRef } from
 import { Svg, Render, SVGStyle } from "../render";
 import { Timetable, WithRegions, regionOfLayoutTree } from "./timetable";
 import { add, Vector } from "../vector";
+import { addVector, Point, subPoints } from "../point";
 import { fromRectangles } from "../polygon/from-rectangles";
 import { pathOfRect, offsetPolygon, simplifyPolygons } from "../polygon";
 import { NumberSettingView, SettingView, ToggleSettingView, ViewSettings } from "../settings";
@@ -257,11 +258,36 @@ class UnsimplifiedRocksLayoutResult extends Render implements FragmentsInfo {
   }
 }
 
-
+/**
+ * A `Region` with an advance vector and an origin.
+ */
 type RegionWithAdvance = {
-  region: Region;
+  /**
+   * A vector pointing from the origin to the point at which new
+   * regions should be attached.
+   */
   advance: Vector;
+  /**
+   * The point, when added with `advance`, yields the point at which
+   * new regions should be attached.
+   */
+  origin: Point;
+  /**
+   * The region itself.
+   */
+  region: Region;
 };
+
+/**
+ * Calculate the lead-out point (the origin plus the advance) of a
+ * region.
+ *
+ * @param region The region whose lead-out point to calculate.
+ * @returns The lead-out point.
+ */
+function leadOutPoint(region: RegionWithAdvance): Point {
+  return addVector(region.origin, region.advance);
+}
 
 type L1s = RegionWithAdvance[];
 
@@ -271,10 +297,21 @@ type L1s = RegionWithAdvance[];
  * @param backing The `Backing` table.
  * @param region The `RegionWithAdvance` to modify.
  * @param padding The amount of padding to apply.
+ * @param translate Should we translate the underlying region when
+ * wrapping? (A value of `false` corresponds to algorithm G1 as
+ * discussed in the paper).
  */
-function wrapRegionWithAdvance(backing: Backing, region: RegionWithAdvance, padding: number) {
+function wrapRegionWithAdvance(backing: Backing, region: RegionWithAdvance, padding: number, translate: boolean) {
   region.advance = add(region.advance, { dx: 2 * padding, dy: 0 });
-  backing.translateRegion(region.region, { dx: padding, dy: 0 });
+  if(translate) {
+    // Note that here we _do not_ use `translateRegionWithAdvance`,
+    // since we don't want to move the region's origin. (We avoid
+    // moving the origin by instead translating the region's
+    // constituent rectangles).
+    backing.translateRegion(region.region, { dx: padding, dy: 0 });
+  } else {
+    region.origin = addVector(region.origin, { dx: -padding, dy: 0 });
+  }
 }
 
 /**
@@ -283,16 +320,21 @@ function wrapRegionWithAdvance(backing: Backing, region: RegionWithAdvance, padd
  * @param backing The `Backing` table.
  * @param layout The `Layout` to modify.
  * @param padding The amount of padding to apply.
+ * @param translate Should we translate the layout when wrapping? (A
+ * value of `false` corresponds to algorithm G1 as discussed in the
+ * paper).
  */
-function wrapLayout(backing: Backing, layout: L1s, padding: number) {
+function wrapLayout(backing: Backing, layout: L1s, padding: number, translate: boolean) {
   for(const line of layout) {
-    wrapRegionWithAdvance(backing, line, padding);
+    wrapRegionWithAdvance(backing, line, padding, translate);
   }
 }
 
 /**
  * Join two regions (with advance), creating a new region which
- * represents `a` followed by `b`.
+ * represents `a` followed by `b`. This function does not translate
+ * the input regions; it presumes that they have already been
+ * translated to their final relative positions.
  *
  * @param a The first region.
  * @param b The second region.
@@ -301,8 +343,21 @@ function wrapLayout(backing: Backing, layout: L1s, padding: number) {
 function joinRegionsWithAdvance(a: RegionWithAdvance, b: RegionWithAdvance): RegionWithAdvance {
   return {
     region: joinRegions(a.region, b.region),
-    advance: add(a.advance, b.advance)
+    origin: {...a.origin},
+    advance: subPoints(leadOutPoint(b), a.origin)
   }
+}
+
+/**
+ * Translate a region (with advance) by the vector `v`.
+ *
+ * @param the `Backing` table.
+ * @param region The `RegionWithAdvance` to translate.
+ * @param v The amount to translate the region by.
+ */
+function translateRegionWithAdvance(backing: Backing, region: RegionWithAdvance, v: Vector) {
+  region.origin = addVector(region.origin, v);
+  backing.translateRegion(region.region, v);
 }
 
 /**
@@ -319,7 +374,10 @@ function extendH(backing: Backing, a: L1s, b: L1s) {
   const lastOfA = a[a.length - 1];
   const firstOfB = b[0];
 
-  backing.translateRegion(firstOfB.region, lastOfA.advance);
+  // Find a vector, `v`, which translates `firstOfB`'s origin to the
+  // lead-out point of `lastOfA`.
+  const v = subPoints(leadOutPoint(lastOfA), firstOfB.origin);
+  translateRegionWithAdvance(backing, firstOfB, v);
   a[a.length - 1] = joinRegionsWithAdvance(lastOfA, firstOfB);
 
   a.push(...b.slice(1));
@@ -336,20 +394,23 @@ function extendV(a: L1s, b: L1s) {
 }
 
 export class RocksLayoutSettings implements ViewSettings {
+  public translateWraps: boolean;
   public idealLeading: number;
 
-  constructor(idealLeading: number) {
+  constructor(translateWraps: boolean, idealLeading: number) {
+    this.translateWraps = translateWraps;
     this.idealLeading = idealLeading;
   }
 
   viewSettings(): SettingView[] {
     return [
+      ToggleSettingView.new("translateWraps", this, "Translate wraps"),
       NumberSettingView.new("idealLeading", this, "Ideal leading"),
     ]
   }
 
   clone() {
-    return new RocksLayoutSettings(this.idealLeading);
+    return new RocksLayoutSettings(this.translateWraps, this.idealLeading);
   }
 }
 
@@ -373,6 +434,7 @@ export class RocksLayout implements alt.Layout {
           assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding));
           return [{
             region: regionFromStackRef(root.stackRef),
+            origin: { x: 0, y: 0 },
             advance: { dx: width(root.rect), dy: 0}
           }]
         };
@@ -380,6 +442,7 @@ export class RocksLayout implements alt.Layout {
           assert(root.stackRef.index === backing.pushSpacer(root.width));
           return [{
             region: regionFromStackRef(root.stackRef),
+            origin: { x: 0, y: 0 },
             advance: { dx: root.width, dy: 0 }
           }];
         }
@@ -395,7 +458,7 @@ export class RocksLayout implements alt.Layout {
         }
         case "Wrap": {
           const layout = go(root.child);
-          wrapLayout(backing, layout, root.padding);
+          wrapLayout(backing, layout, root.padding, this.settings.translateWraps);
           return layout;
         }
       }
@@ -500,23 +563,26 @@ class OutlinedRocksLayoutResult extends Render implements FragmentsInfo {
 }
 
 export class OutlinedRocksLayoutSettings implements ViewSettings {
+  public translateWraps: boolean;
   public idealLeading: number;
   public enableSimplification: boolean;
 
-  constructor(idealLeading: number, enableSimplification: boolean) {
+  constructor(translateWraps: boolean, idealLeading: number, enableSimplification: boolean) {
+    this.translateWraps = translateWraps;
     this.idealLeading = idealLeading;
     this.enableSimplification = enableSimplification;
   }
 
   viewSettings(): SettingView[] {
     return [
+      ToggleSettingView.new("translateWraps", this, "Translate wraps"),
       NumberSettingView.new("idealLeading", this, "Ideal leading"),
       ToggleSettingView.new("enableSimplification", this, "Enable simplification")
     ]
   }
 
   clone() {
-    return new OutlinedRocksLayoutSettings(this.idealLeading, this.enableSimplification);
+    return new OutlinedRocksLayoutSettings(this.translateWraps, this.idealLeading, this.enableSimplification);
   }
 }
 

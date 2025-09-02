@@ -12,8 +12,8 @@ const testDir = __dirname;
 
 const tests = await collectLayoutTests(testDir);
 
-test.each(tests)("layout $testName", async ({testName, layoutTree, expectationPath, hasBaseline}) => {
-  const alg = new PebbleLayout(new PebbleLayoutSettings(0));
+test.each(tests)("layout $testName", async ({testName, layoutTree, expectationPath, hasBaseline, settings}) => {
+  const alg = new PebbleLayout(new PebbleLayoutSettings(settings.translateWraps ?? true, 0));
   const l = alg.layout(layoutTree);
   const svg = toSVG(l, 0, true);
 
