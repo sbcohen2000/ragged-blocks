@@ -32,13 +32,13 @@ onmessage = (e: MessageEvent<WorkerMsg<any>>) => {
         result = result.stack(mesh);
       }
 
+      if(data.renderSettings.renderFragmentBoundingBoxes) {
+        result = result.stack(new rb.FragmentBoundingBoxesRendering(layoutResult));
+      }
+
       result = result.stack(text);
 
-      const svgSrc = rb.toSVG(
-        result,
-        10,
-        data.renderSettings.renderFragmentBoundingBoxes
-      );
+      const svgSrc = rb.toSVG(result, 10);
 
       const endTime = performance.now();
       const duration = endTime - beginTime;

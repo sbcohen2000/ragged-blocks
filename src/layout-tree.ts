@@ -5,8 +5,8 @@
 
 import { Point } from "./point";
 import { Polygon } from "./polygon";
-import { Rect, width } from "./rect";
-import { DEFAULT_BORDER_STYLE, DEFAULT_STYLE, Render, SVGStyle } from "./render";
+import { Rect, width, height, union } from "./rect";
+import { DEFAULT_BORDER_STYLE, DEFAULT_STYLE, Svg, Render, SVGStyle } from "./render";
 
 export interface Ann {
   Newline: object;
@@ -216,3 +216,40 @@ export function *eachAtom<A extends Ann>(tree: LayoutTree<A>): IterableIterator<
     }
   }
 }
+
+/**
+ * Given a type which implements `FragmentsInfo`, produce a
+ * `Render`able object which renders the positions of each fragment
+ * with a white box with black stroke.
+ */
+export class FragmentBoundingBoxesRendering extends Render {
+  private layoutResult: FragmentsInfo;
+
+  constructor(layoutResult: FragmentsInfo) {
+    super();
+    this.layoutResult = layoutResult;
+  }
+
+  render(svg: Svg, _sty: SVGStyle) {
+    for(const frag of this.layoutResult.fragmentsInfo()) {
+      svg.rect(width(frag.rect), height(frag.rect))
+        .move(frag.rect.left, frag.rect.top)
+        .fill("white")
+        .stroke("black")
+        .strokeWidth(1);
+    }
+  }
+
+  boundingBox(): Rect | null {
+    let bbox: Rect | null = null;
+    for(const frag of this.layoutResult.fragmentsInfo()) {
+      if(bbox === null) {
+        bbox = frag.rect;
+      } else {
+        bbox = union(bbox, frag.rect);
+      }
+    }
+    return bbox;
+  }
+}
+

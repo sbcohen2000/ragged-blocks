@@ -871,17 +871,8 @@ class SBlocksLayoutResult extends Render implements FragmentsInfo {
   render(svg: Svg, sty: SVGStyle): void {
     const go = (root: LayoutTree<WithMeasurements<WithOutlines>>) => {
       switch(root.type) {
-        case "Newline": break;
-        case "Atom": {
-          if(sty.debugFragmentBoundingBoxes) {
-            const r = root.rect;
-            svg
-              .rect(width(r), height(r))
-              .fill("white")
-              .stroke("black")
-              .move(r.left, r.top);
-          }
-        } break;
+        case "Newline":
+        case "Atom":
         case "Spacer": break;
         case "Node": {
           const r = new PolygonRendering(root.outline).withStyles({

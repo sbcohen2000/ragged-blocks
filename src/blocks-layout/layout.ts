@@ -50,15 +50,7 @@ class BlocksLayoutResult extends Render implements FragmentsInfo {
           go(root.lhs);
           go(root.rhs);
         } break;
-        case "Atom": {
-          if(sty.debugFragmentBoundingBoxes) {
-            svg
-              .rect(width(root.rect), height(root.rect))
-              .fill("white")
-              .stroke("black")
-              .move(root.rect.left, root.rect.top)
-          }
-        } break;
+        case "Atom":
         case "Spacer": break;
         case "Wrap": {
           if(width(root.rect) > 0 && height(root.rect) > 0) {

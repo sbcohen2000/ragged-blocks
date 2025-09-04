@@ -57,14 +57,12 @@ export type SVGStyle = {
    * The color of (non-border) strokes (i.e. line segments).
    */
   stroke: string;
-  debugFragmentBoundingBoxes: boolean;
 };
 
 export const DEFAULT_STYLE: SVGStyle = {
   fill: "white",
   stroke: "black",
   borders: [],
-  debugFragmentBoundingBoxes: false,
 }
 
 export abstract class Render {
@@ -102,15 +100,11 @@ export abstract class Render {
  * @param a The value to render as an SVG.
  * @param window The optional window object to use instead of the
  * default window.
- * @param debugFragmentBoundingBoxes An optional flag which, when
- * true, will instruct the renderer to include renderings of the base
- * fragment rectangles in the output.
  * @returns An SVG, serialized as a string.
  */
 export function toSVG<A extends Render>(
   a: A,
   padding?: number,
-  debugFragmentBoundingBoxes?: boolean
 ): string {
   if(!padding) {
     padding = 0;
@@ -118,9 +112,6 @@ export function toSVG<A extends Render>(
 
   const svg = new Svg();
   const sty = DEFAULT_STYLE;
-  if(debugFragmentBoundingBoxes !== undefined) {
-    sty.debugFragmentBoundingBoxes = debugFragmentBoundingBoxes;
-  }
   a.render(svg, sty);
 
   let bbox = a.boundingBox();

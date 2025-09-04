@@ -3,6 +3,7 @@ import BlocksLayout, { BlocksLayoutSettings } from "../../src/blocks-layout/layo
 import collectLayoutTests from "../collect-layout-tests";
 import diffSvgPng from "../diff-svg-png";
 import sharp from "sharp";
+import { FragmentBoundingBoxesRendering } from "../../src/layout-tree";
 import { test, expect } from "@jest/globals";
 import { toSVG } from "../../src/render";
 
@@ -15,7 +16,7 @@ const tests = await collectLayoutTests(testDir);
 test.each(tests)("layout $testName", async ({testName, layoutTree, expectationPath, hasBaseline}) => {
   const alg = new BlocksLayout(new BlocksLayoutSettings());
   const l = alg.layout(layoutTree);
-  const svg = toSVG(l, 0, true);
+  const svg = toSVG(l.stack(new FragmentBoundingBoxesRendering(l)), 0);
 
   if(!hasBaseline) {
     await sharp(Buffer.from(svg))

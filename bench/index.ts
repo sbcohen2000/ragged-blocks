@@ -357,6 +357,10 @@ function bench(srcPath: string, algoStr: Algo, measure: (text: string) => rb.Rec
   });
 
   let rendering: rb.Render = testResult;
+  if(renderSettings.renderFragmentBoundingBoxes) {
+    rendering = rendering.stack(new rb.FragmentBoundingBoxesRendering(testResult));
+  }
+
   if(renderSettings.renderText) {
     rendering = rendering.stack(text);
   }
@@ -668,7 +672,7 @@ async function main() {
         console.log("duration: ", fmtDuration(result.duration));
       }
 
-      const svg = rb.toSVG(result.renderable, 10, opt.rFragmentBoundingBoxes);
+      const svg = rb.toSVG(result.renderable, 10);
       fs.writeFileSync(opt.output, svg);
     });
   }

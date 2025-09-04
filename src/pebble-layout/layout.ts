@@ -414,7 +414,7 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
 
   render(svg: Svg, sty: SVGStyle) {
     const that = this;
-    const allRects = [...this.allStacks()].map(stk => that.rectsOfStack(stk, sty.debugFragmentBoundingBoxes));
+    const allRects = [...this.allStacks()].map(stk => that.rectsOfStack(stk));
     for(const [rect, fill] of concatEvenly(allRects)) {
       svg
         .rect(width(rect), height(rect))

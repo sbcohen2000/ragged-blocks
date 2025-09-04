@@ -154,20 +154,10 @@ class UnsimplifiedRocksLayoutResult extends Render implements FragmentsInfo {
     this.layoutTree = layoutTree;
   }
 
-  render(svg: Svg, sty: SVGStyle): void {
+  render(svg: Svg, _sty: SVGStyle): void {
     const go = (root: LayoutTree<WithRegions>) => {
       switch(root.type) {
-        case "Atom": {
-          if(sty.debugFragmentBoundingBoxes) {
-            const r = this.backing.getByIndex(root.stackRef.index);
-            assert(typeof r !== "number", "Found Spacer where Atom is expected");
-            svg
-              .rect(width(r), height(r))
-              .fill("white")
-              .stroke("black")
-              .move(r.left, r.top);
-          }
-        } break;
+        case "Atom":
         case "Spacer": break; // Nothing to do.
         case "JoinV":
         case "JoinH": {
@@ -517,17 +507,7 @@ class OutlinedRocksLayoutResult extends Render implements FragmentsInfo {
   render(svg: Svg, sty: SVGStyle) {
     const go = (root: LayoutTree<WithRegions<WithOutlines>>) => {
       switch(root.type) {
-        case "Atom": {
-          if(sty.debugFragmentBoundingBoxes) {
-            const r = this.unsimplifiedResult.backing.getByIndex(root.stackRef.index);
-            assert(typeof r !== "number", "Found Spacer where Atom is expected");
-            svg
-              .rect(width(r), height(r))
-              .fill("white")
-              .stroke("black")
-              .move(r.left, r.top);
-          }
-        } break;
+        case "Atom":
         case "Spacer": break;
         case "JoinV":
         case "JoinH": {
