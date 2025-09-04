@@ -1,3 +1,4 @@
+import * as freetype from "@julusian/freetype2";
 import * as rb from "ragged-blocks";
 import * as readline from "node:readline/promises";
 import Haskell from "tree-sitter-haskell";
@@ -153,7 +154,7 @@ function fmtTable(
  * same height and let its width be proportional to the length of its
  * contents.
  */
-function measure(text: string): rb.Rect {
+function measureFallback(text: string): rb.Rect {
   return {
     left: 0,
     right: text.length * 10,
@@ -161,6 +162,34 @@ function measure(text: string): rb.Rect {
     bottom: 20
   };
 }
+
+/**
+ * Make a measurement function which uses the given `font` as input.
+ *
+ * @param font A path to the font file to load.
+ * @returns A measure function using `font`.
+ */
+function mkMeasure(font: string): (text: string) => rb.Rect {
+  const face = freetype.NewFace(font);
+  face.setPixelSizes(12, 0);
+  const ascend = face.properties().ascender / 64;
+  const descend = face.properties().descender / 64;
+
+  return (text: string) => {
+    let width = 0;
+    for(let i = 0; i < text.length; ++i) {
+      const glyph = face.loadChar(text.charCodeAt(i));
+      width += glyph.metrics.horiAdvance / 64;
+    }
+
+    return {
+      left: 0,
+      right: width,
+      top: -ascend,
+      bottom: -descend
+    }
+  };
+};
 
 type BenchResult = {
   meanHorzMeshDistance: number;
@@ -196,7 +225,7 @@ function algoContrOfAlgoStr(algoStr: Algo): rb.Layout {
     case "Unstyled":
     case "L1P": return new rb.PebbleLayout(new rb.PebbleLayoutSettings(true, 20));
     case "L1S": return new rb.RocksLayout(new rb.RocksLayoutSettings(true, 20));
-    case "L1S+": return new rb.OutlinedRocksLayout(new rb.OutlinedRocksLayoutSettings(true, 20, false));
+    case "L1S+": return new rb.OutlinedRocksLayout(new rb.OutlinedRocksLayoutSettings(true, 20, true));
     case "S-Blocks": return new rb.SBlocksLayout(new rb.SBlocksLayoutSettings(20));
     case "BlocksNS":
     case "Blocks": return new rb.BlocksLayout(new rb.BlocksLayoutSettings());
@@ -229,7 +258,7 @@ function measureRuntime(srcPath: string, algoStr: Algo, iters: number): number {
   const src = fs.readFileSync(srcPath, { encoding: "utf8" });
   const testTree = parse(src, lang, settings);
   rb.randomizeFillColors(testTree);
-  let testTreeWithMeasurements = rb.measureLayoutTree(testTree, measure);
+  let testTreeWithMeasurements = rb.measureLayoutTree(testTree, measureFallback);
 
   const startTime = performance.now();
   for(let i = 0; i < iters; ++i) {
@@ -242,7 +271,26 @@ function measureRuntime(srcPath: string, algoStr: Algo, iters: number): number {
   return duration / iters;
 }
 
-function bench(srcPath: string, algoStr: Algo): BenchResult {
+type RenderSettings = {
+  renderText: boolean;
+  renderFragmentBoundingBoxes: boolean;
+  renderRefMesh: boolean;
+  renderTestMesh: boolean;
+};
+
+const DEFAULT_RENDER_SETTINGS: RenderSettings = {
+  renderText: true,
+  renderFragmentBoundingBoxes: false,
+  renderRefMesh: false,
+  renderTestMesh: false
+};
+
+function bench(srcPath: string, algoStr: Algo, measure: (text: string) => rb.Rect, renderSettings?: Partial<RenderSettings>): BenchResult {
+  if(!renderSettings) {
+    renderSettings = {};
+  }
+  renderSettings = { ...DEFAULT_RENDER_SETTINGS, ...renderSettings };
+
   console.log(`Working on ${algoStr}...`);
   const testAlgo = algoContrOfAlgoStr(algoStr);
   const ext = extname(srcPath);
@@ -292,6 +340,35 @@ function bench(srcPath: string, algoStr: Algo): BenchResult {
     vertMeshDistances = refMesh.verticalMeshDistances(testMesh);
   }
 
+  const metricsIter = rb.eachAtom(testTreeWithMeasurements);
+  const text = new (class extends rb.Render {
+    render(svg: rb.Svg, _sty: rb.SVGStyle) {
+      for(const frag of testResult.fragmentsInfo()) {
+        const metrics = metricsIter.next().value as rb.Atom<rb.WithMeasurements>;
+        const text = svg.text(frag.text);
+        text.font("Inconsolata Medium", 12);
+        text.move(frag.rect.left, frag.rect.top - metrics.rect.top);
+      }
+    }
+
+    boundingBox(): rb.Rect | null {
+      return null;
+    }
+  });
+
+  let rendering: rb.Render = testResult;
+  if(renderSettings.renderText) {
+    rendering = rendering.stack(text);
+  }
+
+  if(renderSettings.renderTestMesh) {
+    rendering = rendering.stack(testMesh.withStyles({ stroke: "green" }));
+  }
+
+  if(renderSettings.renderRefMesh && refMesh !== undefined) {
+    rendering = rendering.stack(refMesh.withStyles({ stroke: "blue" }));
+  }
+
   return {
     meanHorzMeshDistance,
     horzMeshDistances,
@@ -302,10 +379,7 @@ function bench(srcPath: string, algoStr: Algo): BenchResult {
     duration,
     basename: basename(srcPath),
     algoStr,
-    renderable:
-    testResult
-      .stack(testMesh.withStyles({ stroke: "blue" }))
-      .stack(refMesh?.withStyles({ stroke: "green" }) ?? new rb.EmptyRendering())
+    renderable: rendering
   }
 }
 
@@ -314,7 +388,7 @@ function benchAll(srcPath: string): Map<Algo, BenchResult> {
   const algos: Algo[] = ["Unstyled", "L1P", "L1S", "S-Blocks", "BlocksNS", "Blocks"];
   let out: Map<Algo, BenchResult> = new Map();
   for(const algo of algos) {
-    const result = bench(srcPath, algo);
+    const result = bench(srcPath, algo, measureFallback, { renderText: false });
     out.set(algo, result);
   }
   return out;
@@ -550,6 +624,10 @@ async function main() {
     layoutCmd.addOption(algOption);
     layoutCmd.addOption(outOption);
     layoutCmd.option("-v --verbose", "Be verbose.", false);
+    layoutCmd.option("--noText", "Disable text rendering", false);
+    layoutCmd.option("--rTestMesh", "Render the test mesh distance mesh", false);
+    layoutCmd.option("--rRefMesh", "Render the reference mesh distance mesh", false);
+    layoutCmd.option("--rFragmentBoundingBoxes", "Render fragment bounding boxes", false);
     layoutCmd.action((srcPath, opt) => {
       const ext = extname(srcPath);
       const lang = (() => {
@@ -573,7 +651,14 @@ async function main() {
       }
 
       const algoStr = asAlgo(opt.algorithm);
-      const result = bench(srcPath, algoStr);
+      const measure = mkMeasure("./Inconsolata-Medium.otf");
+      const renderSettings: RenderSettings = {
+        renderFragmentBoundingBoxes: opt.rFragmentBoundingBoxes,
+        renderTestMesh: opt.rTestMesh,
+        renderRefMesh: opt.rRefMesh,
+        renderText: !opt.noText
+      };
+      const result = bench(srcPath, algoStr, measure, renderSettings);
 
       if(opt.verbose) {
         console.log("mean horz mesh distance: ", result.meanHorzMeshDistance);
@@ -583,7 +668,7 @@ async function main() {
         console.log("duration: ", fmtDuration(result.duration));
       }
 
-      const svg = rb.toSVG(result.renderable, 10);
+      const svg = rb.toSVG(result.renderable, 10, opt.rFragmentBoundingBoxes);
       fs.writeFileSync(opt.output, svg);
     });
   }
