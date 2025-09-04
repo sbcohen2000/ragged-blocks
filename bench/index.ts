@@ -99,6 +99,7 @@ function fmtCol(ns: number[], tooSmall: number, forLaTeX: boolean): string[] {
 }
 
 function fmtTable(
+  headers: string[],
   data: (number | string)[][],
   forLaTeX: boolean,
   postprocess: (s: string, row: number, col: number, atEnd: boolean) => string
@@ -119,8 +120,9 @@ function fmtTable(
     }
 
     // Turn the column into strings.
-    let maxColLen = 0;
-    let colStrings: string[] = [];
+    let colStrings: string[] = [headers[col] + " "];
+    let maxColLen = headers[col].length + 1;
+
     for(let row = 0; row < nRows; ++row) {
       let s = colData[row].toString();
       s = postprocess(s, row, col, col === nCols - 1);
@@ -138,9 +140,10 @@ function fmtTable(
   }
 
   let out = "";
-  for(let row = 0; row < nRows; ++row) {
-    for(let col = 0; col < nCols; ++col) {
-      out += columns[col][row];
+  // Note that here we account for the header row with <=.
+  for(let row = 0; row <= nRows; ++row) {
+    for(const col of columns) {
+      out += col[row];
     }
     out += "\n"
   }
@@ -421,6 +424,7 @@ function mkPerfTable(forLaTeX: boolean) {
   };
 
   let perf: (number | string)[][] = [];
+
   for(const srcPath of srcPaths) {
     const base = basename(srcPath);
     const durationL1P = measureRuntime(srcPath, "L1P", 10);
@@ -433,7 +437,9 @@ function mkPerfTable(forLaTeX: boolean) {
     perf.push(row);
   }
 
-  console.log(fmtTable(perf, forLaTeX, (s, _row, col, atEnd) => {
+  console.log(fmtTable(
+    ["Filename", "LOC", "# of Fragments", "L1P", "L1S", "L1S Speedup"],
+    perf, forLaTeX, (s, _row, col, atEnd) => {
     if(forLaTeX) {
       if(col === 5) {
         s = ` (${s} $\\times{}$)`;
@@ -474,6 +480,7 @@ function mkErrorTables(forLaTeX: boolean) {
   // ==================== Line Width =====================
   console.log(">>>>>>>>>>> Line width:");
   let lineWidth: (number | string)[][] = [];
+
   for(const srcPath of srcPaths) {
     let rowData = data.get(srcPath)!;
 
@@ -501,7 +508,9 @@ function mkErrorTables(forLaTeX: boolean) {
     lineWidth.push(row);
   }
 
-  console.log(fmtTable(lineWidth, forLaTeX, (s, _row, col, atEnd) => {
+  console.log(fmtTable(
+    ["Filename", "Unstyled", "(rel)", "L1S", "(rel)", "S-Blocks", "(rel)", "BlocksNS", "(rel)", "Blocks", "(rel)"],
+    lineWidth, forLaTeX, (s, _row, col, atEnd) => {
     if(forLaTeX) {
       if(col % 2 === 0 && col > 0) {
         s = ` (${s})`;
@@ -524,6 +533,7 @@ function mkErrorTables(forLaTeX: boolean) {
   // =================== Mesh Distance ===================
   console.log(">>>>>>>>>>> Mesh distance:");
   let meshDistance: (number | string)[][] = [];
+
   for(const srcPath of srcPaths) {
     let rowData = data.get(srcPath)!;
 
@@ -551,7 +561,9 @@ function mkErrorTables(forLaTeX: boolean) {
     meshDistance.push(row);
   }
 
-  console.log(fmtTable(meshDistance, forLaTeX, (s, _row, col, atEnd) => {
+  console.log(fmtTable(
+    ["Filename", "L1S", "(rel)", "S-Blocks", "(rel)", "BlocksNS", "(rel)", "L1S", "(rel)", "S-Blocks", "(rel)", "BlocksNS", "(rel)"],
+    meshDistance, forLaTeX, (s, _row, col, atEnd) => {
     if(forLaTeX) {
       if(col % 2 === 0 && col > 0) {
         s = ` (${s})`;
