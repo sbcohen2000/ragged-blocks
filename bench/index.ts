@@ -194,9 +194,9 @@ function asAlgo(text: string): Algo {
 function algoContrOfAlgoStr(algoStr: Algo): rb.Layout {
   switch(algoStr) {
     case "Unstyled":
-    case "L1P": return new rb.PebbleLayout(new rb.PebbleLayoutSettings(20));
-    case "L1S": return new rb.RocksLayout(new rb.RocksLayoutSettings(20));
-    case "L1S+": return new rb.OutlinedRocksLayout(new rb.OutlinedRocksLayoutSettings(20, false));
+    case "L1P": return new rb.PebbleLayout(new rb.PebbleLayoutSettings(true, 20));
+    case "L1S": return new rb.RocksLayout(new rb.RocksLayoutSettings(true, 20));
+    case "L1S+": return new rb.OutlinedRocksLayout(new rb.OutlinedRocksLayoutSettings(true, 20, false));
     case "S-Blocks": return new rb.SBlocksLayout(new rb.SBlocksLayoutSettings(20));
     case "BlocksNS":
     case "Blocks": return new rb.BlocksLayout(new rb.BlocksLayoutSettings());
@@ -268,7 +268,7 @@ function bench(srcPath: string, algoStr: Algo): BenchResult {
 
   let refMesh: rb.MeshDistanceMesh | undefined = undefined;
   if(algoStr !== "Unstyled") {
-    const refAlgo = new rb.RocksLayout(new rb.RocksLayoutSettings(20));
+    const refAlgo = new rb.RocksLayout(new rb.RocksLayoutSettings(true, 20));
     const refResult = refAlgo.layout(refTreeWithMeasurements);
     refMesh = rb.MeshDistanceMesh.fromFragments(refResult);
   }
