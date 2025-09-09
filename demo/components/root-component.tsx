@@ -260,6 +260,16 @@ export default function Root() {
           </Tooltip>
           <Tooltip>
             <div className={styles.tooltipContent}>
+              Algorithm L1S, extended with support for pins.
+            </div>
+            <Button
+              label={"L2AS"}
+              onClick={() => toggleLayout("L2AS")}
+              enabled={hasLayout("L2AS")}
+            />
+          </Tooltip>
+          <Tooltip>
+            <div className={styles.tooltipContent}>
               Blocks renders each node in the Layout Tree inside a rectangle. This can lead to unnatural text layouts which don't resemble their source. However, this algorithm is very simple and pretty fast.
             </div>
             <Button

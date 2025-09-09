@@ -20,8 +20,23 @@ const pText: Parsimmon.Parser<string> =
         Parsimmon.noneOf("\n[]#@")
       ).atLeast(1).map(s => s.join(""));
 
+const pSpaceAtom: Parsimmon.Parser<LayoutTree> =
+      Parsimmon.string(" ").atLeast(1).map(s => {
+        const atom: LayoutTree = { type: "Atom", text: s.join("") };
+        return atom;
+      });
+
 const pAtom: Parsimmon.Parser<LayoutTree> =
-      pText.map(text => ({ type: "Atom", text }))
+      Parsimmon.seq(
+        Parsimmon.regexp(/[a-zA-Z0-9]+#/).atMost(1),
+        pText
+      ).map(([maybePin, text]) => {
+        const atom: LayoutTree = { type: "Atom", text };
+        if(maybePin.length === 1) {
+          atom.pinId = maybePin[0];
+        }
+        return atom;
+      });
 
 const pNewline: Parsimmon.Parser<LayoutTree[]> =
       Parsimmon.seq(
@@ -36,7 +51,7 @@ const pNewline: Parsimmon.Parser<LayoutTree[]> =
       });
 
 const pName: Parsimmon.Parser<string> =
-      Parsimmon.regexp(/[a-z][a-zA-Z0-9-_]*/);
+      Parsimmon.regexp(/[a-z][a-zA-Z0-9-\_]*/);
 
 const pStyleReference: Parsimmon.Parser<string> =
       Parsimmon.seq(
@@ -67,6 +82,7 @@ const pNode: Parsimmon.Parser<LayoutTree<WithStyleRefs>> = Parsimmon.lazy(functi
 const pLayoutTree: Parsimmon.Parser<LayoutTree[]> = Parsimmon.lazy(function () {
   return Parsimmon.alt(
     pNewline,
+    pSpaceAtom.map((lt) => [lt]),
     pAtom.map((lt) => [lt]),
     pNode.map((lt) => [lt])
   );

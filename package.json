@@ -28,7 +28,8 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@sbcohen/containers": "^1.0.1"
+    "@sbcohen/containers": "^1.0.1",
+    "glpk.js": "^4.0.2"
   },
   "publishConfig": {
     "access": "public"

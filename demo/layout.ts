@@ -127,7 +127,7 @@ export default async function layout<A extends rb.AlgorithmName>(
 
         const metricsIter = rb.eachAtom(layoutTree);
         const algo = rb.constructAlgoByName(algoName)(algoSettings);
-        const layoutResult = algo.layout(layoutTree);
+        const layoutResult = await algo.layout(layoutTree);
         const text = new (class extends rb.Render {
           render(svg: rb.Svg, _sty: rb.SVGStyle) {
             for(const frag of layoutResult.fragmentsInfo()) {

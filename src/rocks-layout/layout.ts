@@ -3,17 +3,18 @@ import Backing from "./backing";
 import assert from "../assert";
 import reassocLayoutTree from "../reassoc/reassoc-layout-tree";
 import { FragmentsInfo, FragmentInfo } from "../layout-tree";
+import { default as GLPK, Options, LP } from "glpk.js";
 import { LayoutTree, WithMeasurements, WithOutlines } from "../reassoc/layout-tree";
+import { NumberSettingView, SettingView, ToggleSettingView, ViewSettings } from "../settings";
 import { Polygon, PolygonRendering } from "../polygon";
 import { Rect, horizontallyOverlap, inflate, width, height, union } from "../rect";
-import { Region, EMPTY, joinRegions, enumerateIndices, regionFromStackRef } from "./region";
+import { Region, EMPTY, joinRegions, enumerateIndices, regionFromStackRef, singletonRegion } from "./region";
 import { Svg, Render, SVGStyle } from "../render";
 import { Timetable, WithRegions, regionOfLayoutTree } from "./timetable";
 import { add, Vector } from "../vector";
 import { addVector, Point, subPoints } from "../point";
 import { fromRectangles } from "../polygon/from-rectangles";
 import { pathOfRect, offsetPolygon, simplifyPolygons } from "../polygon";
-import { NumberSettingView, SettingView, ToggleSettingView, ViewSettings } from "../settings";
 
 /**
  * Find the leading between regions `a` and `b`. In other words, find
@@ -350,39 +351,6 @@ function translateRegionWithAdvance(backing: Backing, region: RegionWithAdvance,
   backing.translateRegion(region.region, v);
 }
 
-/**
- * Extend a layout horizontally with another layout.
- *
- * @param backing The `Backing` table.
- * @param a The layout to modify (extend).
- * @param b The layout which will be added to the right hand side of `a`.
- */
-function extendH(backing: Backing, a: L1s, b: L1s) {
-  if(a.length === 0) return b;
-  if(b.length === 0) return a;
-
-  const lastOfA = a[a.length - 1];
-  const firstOfB = b[0];
-
-  // Find a vector, `v`, which translates `firstOfB`'s origin to the
-  // lead-out point of `lastOfA`.
-  const v = subPoints(leadOutPoint(lastOfA), firstOfB.origin);
-  translateRegionWithAdvance(backing, firstOfB, v);
-  a[a.length - 1] = joinRegionsWithAdvance(lastOfA, firstOfB);
-
-  a.push(...b.slice(1));
-}
-
-/**
- * Extend a layout vertically with another layout.
- *
- * @param a The layout to modify (extend).
- * @param b The layout which will be added below `a`.
- */
-function extendV(a: L1s, b: L1s) {
-  a.push(...b);
-}
-
 export class RocksLayoutSettings implements ViewSettings {
   public translateWraps: boolean;
   public idealLeading: number;
@@ -411,7 +379,40 @@ export class RocksLayout implements alt.Layout {
     this.settings = settings;
   }
 
-  layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): UnsimplifiedRocksLayoutResult {
+  /**
+   * Extend a layout horizontally with another layout.
+   *
+   * @param backing The `Backing` table.
+   * @param a The layout to modify (extend).
+   * @param b The layout which will be added to the right hand side of `a`.
+   */
+  private static extendH(backing: Backing, a: L1s, b: L1s) {
+    if (a.length === 0) return b;
+    if (b.length === 0) return a;
+
+    const lastOfA = a[a.length - 1];
+    const firstOfB = b[0];
+
+    // Find a vector, `v`, which translates `firstOfB`'s origin to the
+    // lead-out point of `lastOfA`.
+    const v = subPoints(leadOutPoint(lastOfA), firstOfB.origin);
+    translateRegionWithAdvance(backing, firstOfB, v);
+    a[a.length - 1] = joinRegionsWithAdvance(lastOfA, firstOfB);
+
+    a.push(...b.slice(1));
+  }
+
+  /**
+   * Extend a layout vertically with another layout.
+   *
+   * @param a The layout to modify (extend).
+   * @param b The layout which will be added below `a`.
+   */
+  private static extendV(a: L1s, b: L1s) {
+    a.push(...b);
+  }
+
+  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
     const backing = new Backing();
     const empty: LayoutTree<WithMeasurements> = { type: "Spacer", width: 0, text: "" };
     const rlt: LayoutTree<WithMeasurements> = reassocLayoutTree(layoutTree, empty);
@@ -438,12 +439,12 @@ export class RocksLayout implements alt.Layout {
         }
         case "JoinH": {
           const layout = go(root.lhs);
-          extendH(backing, layout, go(root.rhs));
+          RocksLayout.extendH(backing, layout, go(root.rhs));
           return layout;
         }
         case "JoinV": {
           const layout = go(root.lhs);
-          extendV(layout, go(root.rhs));
+          RocksLayout.extendV(layout, go(root.rhs));
           return layout;
         }
         case "Wrap": {
@@ -467,6 +468,229 @@ export class RocksLayout implements alt.Layout {
       // Put the current line in its place.
       backing.translateRegion(line.region, { dx: 0, dy: adjustedOffset });
       done = joinRegions(done, line.region);
+
+      lastLineOffset = adjustedOffset;
+    }
+
+    return new UnsimplifiedRocksLayoutResult(backing, timetable, ltWithRegions);
+  }
+}
+
+type L2ASFragment<A = {}> = { pinId: string | undefined, idx: number } & A;
+type L2AS<A = {}> = L2ASFragment<A>[][];
+
+export class RocksLayoutWithPins implements alt.Layout {
+  private settings: RocksLayoutSettings;
+
+  constructor(settings: RocksLayoutSettings) {
+    this.settings = settings;
+  }
+
+  /**
+   * Extend a layout horizontally with another layout.
+   *
+   * @param a The layout to modify (extend).
+   * @param b The layout which will be added to the right hand side of `a`.
+   */
+  private static extendH(a: L2AS, b: L2AS) {
+    if (a.length === 0) return b;
+    if (b.length === 0) return a;
+
+    const lastLineOfA = a[a.length - 1];
+    const firstLineOfB = b[0];
+
+    lastLineOfA.push(...firstLineOfB);
+    a.push(...b.slice(1));
+  }
+
+  /**
+   * Extend a layout vertically with another layout.
+   *
+   * @param a The layout to modify (extend).
+   * @param b The layout which will be added below `a`.
+   */
+  private static extendV(a: L2AS, b: L2AS) {
+    a.push(...b);
+  }
+
+  /**
+   * Find the advance between two stacks, `a` and `b`.
+   *
+   * @param backing The backing table.
+   * @param timetable The timetable
+   * @param a The first stack index.
+   * @param b The second stack index.
+   * @returns The minimum horizontal distance that `b`'s origin must
+   * be translated right of `a`'s origin such that the layout is
+   * sound.
+   */
+  private static advance(backing: Backing, timetable: Timetable, aIdx: number, bIdx: number): number {
+    const [aSpc, bSpc] = timetable.spaceBetween(aIdx, bIdx);
+    const aRectOrSpacer = backing.getByIndex(aIdx);
+    const aWidth = typeof aRectOrSpacer === "number" ? aRectOrSpacer : width(aRectOrSpacer);
+    return aWidth + aSpc + bSpc;
+  }
+
+  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
+    const backing = new Backing();
+    const empty: LayoutTree<WithMeasurements> = { type: "Spacer", width: 0, text: "" };
+    const rlt: LayoutTree<WithMeasurements> = reassocLayoutTree(layoutTree, empty);
+    const [timetable, ltWithRegions] = Timetable.fromLayoutTree(rlt);
+
+    // Collect a set of all of the PinIds in the layout tree,
+    // including an implicit pin for the left margin.
+    const allPinIds: Set<string> = new Set(["^"]);
+
+    const go = (root: LayoutTree<WithRegions<WithMeasurements>>): L2AS => {
+      switch(root.type) {
+        case "Atom": {
+          const maxPadding = timetable.getMaxPadding(root.stackRef.index);
+          assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding));
+          if(root.pinId !== undefined) {
+            allPinIds.add(root.pinId);
+          }
+          return [[{ pinId: root.pinId, idx: root.stackRef.index }]];
+        };
+        case "Spacer": {
+          assert(root.stackRef.index === backing.pushSpacer(root.width));
+          return [[{ pinId: undefined, idx: root.stackRef.index }]];
+        }
+        case "JoinH": {
+          const layout = go(root.lhs);
+          RocksLayoutWithPins.extendH(layout, go(root.rhs));
+          return layout;
+        }
+        case "JoinV": {
+          const layout = go(root.lhs);
+          RocksLayoutWithPins.extendV(layout, go(root.rhs));
+          return layout;
+        }
+        case "Wrap": {
+          // Nothing to be done.
+          return go(root.child);
+        }
+      }
+    }
+
+    const layout = go(ltWithRegions);
+
+    // Solve for the horizontal position of each block on each line.
+    const glpk = await GLPK();
+    const glpkOptions: Options = {
+    };
+
+    // Minimize the sum of all the variables.
+    const objective: LP["objective"] = {
+      direction: glpk.GLP_MIN,
+      name: "obj",
+      vars: [...allPinIds.values().map(id => ({ name: id, coef: 1 }))]
+    };
+
+    /**
+     * @see LP
+     */
+    type Constraint = {
+        name: string,
+        vars: { name: string, coef: number }[],
+        bnds: { type: number, ub: number, lb: number }
+    };
+
+    const constraints: Constraint[] = [];
+
+    type Adj = {
+      pin: string;
+      ofs: number;
+    };
+    const withAdj: L2AS<{ adj: Adj }> = [];
+
+    for(const line of layout) {
+      const lineWithAdj: L2ASFragment<{ adj: Adj }>[] = [];
+      withAdj.push(lineWithAdj);
+
+      if(line.length === 0) {
+        continue;
+      }
+
+      // Register the first fragment on the line.
+      let ofs: number = 0;
+      let lastPin: string = "^";
+      let lastFragmentIndex: number = line[0].idx;
+      lineWithAdj.push({
+        ...line[0],
+        adj: { pin: lastPin,  ofs }
+      });
+
+      // Handle the remaining fragments on the line.
+      for(const fragment of line.slice(1)) {
+        const thisPin = fragment.pinId;
+        const advance = RocksLayoutWithPins.advance(backing, timetable, lastFragmentIndex, fragment.idx);
+        ofs += advance;
+
+        if(thisPin !== undefined) {
+          // Constrain this pin to equal at least `lastPin` plus the
+          // advance.
+          //
+          // last + advance <= this
+          // --> advance >= this - last
+          // --> this - last <= advance
+          constraints.push({
+            name: `${lastPin} -> ${thisPin}`,
+            vars: [
+              { name: thisPin, coef: 1 },
+              { name: lastPin, coef: -1 },
+            ],
+            bnds: { type: glpk.GLP_LO, ub: 0, lb: ofs }
+          });
+
+          lastPin = thisPin;
+          ofs = 0;
+        }
+
+        lineWithAdj.push({
+          ...fragment,
+          adj: { pin: lastPin, ofs }
+        });
+
+        lastFragmentIndex = fragment.idx;
+      }
+    };
+
+    const soln = await glpk.solve({
+      name: 'lp',
+      objective,
+      subjectTo: constraints
+    }, glpkOptions);
+    console.log("Soln:", soln.result.vars);
+
+    // Now, finalize the layout by vertically positioning each line.
+    let lastLineOffset = 0;
+    let done: Region = EMPTY;
+    for(const line of withAdj) {
+      let doneLine = EMPTY;
+
+      for(const fragment of line) {
+        // Note that we don't care about the region's depth here, only
+        // its range (since that's all that `leading` cares about).
+        // So, we just use 0.
+        const region = singletonRegion(fragment.idx, 0);
+
+        // Translate the region rightwards by the amount calculated by
+        // the above loop, and the solution of the solved LP.
+        const pinx = soln.result.vars[fragment.adj.pin];
+        const dx = pinx + fragment.adj.ofs;
+
+        backing.translateRegion(region, { dx, dy: 0 });
+
+        doneLine = joinRegions(doneLine, region);
+      }
+
+      const currentLineOffset = leading(backing, timetable, done, doneLine);
+      const effectiveLeading = currentLineOffset - lastLineOffset;
+      const adjustedOffset = lastLineOffset + Math.max(effectiveLeading, this.settings.idealLeading);
+
+      // Put the current line in its place.
+      backing.translateRegion(doneLine, { dx: 0, dy: adjustedOffset });
+      done = joinRegions(done, doneLine);
 
       lastLineOffset = adjustedOffset;
     }
@@ -578,9 +802,9 @@ export class OutlinedRocksLayout implements alt.Layout {
     this.settings = settings;
   }
 
-  layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): OutlinedRocksLayoutResult {
+  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<OutlinedRocksLayoutResult> {
     const algo = new RocksLayout(this.settings);
-    const unsimplified = algo.layout(layoutTree);
+    const unsimplified = await algo.layout(layoutTree);
     const outerBBox = unsimplified.boundingBox();
     const outerOutline: Polygon = outerBBox ? [pathOfRect(outerBBox)] : [];
 
@@ -670,3 +894,4 @@ export class OutlinedRocksLayout implements alt.Layout {
     return new OutlinedRocksLayoutResult(withOutlines, unsimplified);
   }
 }
+
