@@ -20,6 +20,26 @@ import { OutlinedRocksLayout, OutlinedRocksLayoutSettings, RocksLayout, RocksLay
 export type AlgorithmName = "L1P" | "L1S" | "L1S+" | "Blocks" | "S-Blocks";
 
 export type Algorithm = PebbleLayout | RocksLayout | OutlinedRocksLayout | BlocksLayout | SBlocksLayout;
+/**
+ * Interpret `str` as an algorithm name, returning `undefined` if
+ * `str` isn't a valid algorithm name.
+ *
+ * @param str The string to interpret as an algorithm name.
+ * @returns An `AlgorithmName`, or `undefined` if `str` wasn't a valid
+ * algorithm name.
+ */
+export function asAlgorithmName(str: string): AlgorithmName | undefined {
+  switch(str) {
+    case "L1P":
+    case "L1S":
+    case "L2AS":
+    case "L1S+":
+    case "Blocks":
+    case "S-Blocks": return str;
+    default: return undefined;
+  }
+}
+
 
 /**
  * For a given `AlgorithmName`, get the type of the class which
