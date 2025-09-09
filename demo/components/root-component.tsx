@@ -91,9 +91,31 @@ export default function Root() {
     setStatusText("Changes saved.");
   }, []);
 
-  const [activeLayouts, setActiveLayouts] = react.useState<rb.AlgorithmName[]>(
-    ["L1S+"],
-  );
+  const [activeLayouts, _setActiveLayouts] = react.useState<rb.AlgorithmName[]>(() => {
+    const str = localStorage.getItem("activeLayouts");
+    if(str === null) {
+      return ["L1S+"];
+    }
+
+    const res = JSON.parse(str);
+    if(Array.isArray(res) && res.every(elem => typeof elem === "string")) {
+      return res
+        .map(rb.asAlgorithmName)
+        .filter(elem => elem !== undefined);
+    }
+
+    return ["L1S+"];
+  });
+
+  const setActiveLayouts = (updateFn: (oldLayouts: rb.AlgorithmName[]) => rb.AlgorithmName[]) => {
+    _setActiveLayouts(activeLayouts => {
+      const newActiveLayouts = updateFn(activeLayouts);
+      // Update the local storage so that we retain the user's choice
+      // of active layouts after page reloads.
+      localStorage.setItem("activeLayouts", JSON.stringify(newActiveLayouts));
+      return newActiveLayouts;
+    });
+  };
 
   const onChange = react.useCallback((val: string) => {
     const result = parseExample(val);
