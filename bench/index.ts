@@ -248,7 +248,7 @@ function langOfSrcPath(srcPath: string): any {
   }
 }
 
-function measureRuntime(srcPath: string, algoStr: Algo, iters: number): number {
+async function measureRuntime(srcPath: string, algoStr: Algo, iters: number): Promise<number> {
   const algo = algoContrOfAlgoStr(algoStr);
   const ext = extname(srcPath);
   const lang = langOfSrcPath(srcPath);
@@ -265,7 +265,7 @@ function measureRuntime(srcPath: string, algoStr: Algo, iters: number): number {
 
   const startTime = performance.now();
   for(let i = 0; i < iters; ++i) {
-    algo.layout(testTreeWithMeasurements);
+    await algo.layout(testTreeWithMeasurements);
   }
   const endTime = performance.now();
 
@@ -288,7 +288,7 @@ const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   renderTestMesh: false
 };
 
-function bench(srcPath: string, algoStr: Algo, measure: (text: string) => rb.Rect, renderSettings?: Partial<RenderSettings>): BenchResult {
+async function bench(srcPath: string, algoStr: Algo, measure: (text: string) => rb.Rect, renderSettings?: Partial<RenderSettings>): Promise<BenchResult> {
   if(!renderSettings) {
     renderSettings = {};
   }
@@ -320,12 +320,12 @@ function bench(srcPath: string, algoStr: Algo, measure: (text: string) => rb.Rec
   let refMesh: rb.MeshDistanceMesh | undefined = undefined;
   if(algoStr !== "Unstyled") {
     const refAlgo = new rb.RocksLayout(new rb.RocksLayoutSettings(true, 20));
-    const refResult = refAlgo.layout(refTreeWithMeasurements);
+    const refResult = await refAlgo.layout(refTreeWithMeasurements);
     refMesh = rb.MeshDistanceMesh.fromFragments(refResult);
   }
 
   const startTime = performance.now();
-  const testResult = testAlgo.layout(testTreeWithMeasurements);
+  const testResult = await testAlgo.layout(testTreeWithMeasurements);
   const endTime = performance.now();
   const duration = (endTime - startTime) / 1000; // seconds
 
@@ -391,17 +391,17 @@ function bench(srcPath: string, algoStr: Algo, measure: (text: string) => rb.Rec
 }
 
 
-function benchAll(srcPath: string): Map<Algo, BenchResult> {
+async function benchAll(srcPath: string): Promise<Map<Algo, BenchResult>> {
   const algos: Algo[] = ["Unstyled", "L1P", "L1S", "S-Blocks", "BlocksNS", "Blocks"];
   let out: Map<Algo, BenchResult> = new Map();
   for(const algo of algos) {
-    const result = bench(srcPath, algo, measureFallback, { renderText: false });
+    const result = await bench(srcPath, algo, measureFallback, { renderText: false });
     out.set(algo, result);
   }
   return out;
 }
 
-function mkPerfTable(forLaTeX: boolean) {
+async function mkPerfTable(forLaTeX: boolean) {
   const srcPaths: string[] = [
     "./inputs/core.ts",
     "./inputs/diff-objs.ts",
@@ -427,8 +427,8 @@ function mkPerfTable(forLaTeX: boolean) {
 
   for(const srcPath of srcPaths) {
     const base = basename(srcPath);
-    const durationL1P = measureRuntime(srcPath, "L1P", 10);
-    const durationL1S = measureRuntime(srcPath, "L1S", 10);
+    const durationL1P = await measureRuntime(srcPath, "L1P", 10);
+    const durationL1S = await measureRuntime(srcPath, "L1S", 10);
 
     const nLOC = STATIC[base][0];
     const nFrags = STATIC[base][1];
@@ -459,7 +459,7 @@ function mkPerfTable(forLaTeX: boolean) {
   }));
 }
 
-function mkErrorTables(forLaTeX: boolean) {
+async function mkErrorTables(forLaTeX: boolean) {
   const srcPaths: string[] = [
     "./inputs/core.ts",
     "./inputs/diff-objs.ts",
@@ -473,7 +473,7 @@ function mkErrorTables(forLaTeX: boolean) {
   for(const srcPath of srcPaths) {
     console.log(`>>>>>>>>>>> Benching ${srcPath} <<<<<<<<<<<`);
 
-    const rowData = benchAll(srcPath);
+    const rowData = await benchAll(srcPath);
     data.set(srcPath, rowData);
   }
 
@@ -606,7 +606,7 @@ async function main() {
         rl.close();
       }
 
-      const duration = measureRuntime(srcPath, opts.algorithm, opts.iters);
+      const duration = await measureRuntime(srcPath, opts.algorithm, opts.iters);
       console.log(`Finished layout in ${fmtDuration(duration)} (average of ${opts.iters} iterations).`);
     });
   }
@@ -619,8 +619,8 @@ async function main() {
     const perfCmd = new Command("perfTable");
     perfCmd.addOption(latexOption);
     perfCmd.description("Generate a performance benchmark.");
-    perfCmd.action(opt => {
-      mkPerfTable(opt.LaTeX);
+    perfCmd.action(async (opt) => {
+      await mkPerfTable(opt.LaTeX);
     });
     tableCmd.addCommand(perfCmd);
 
@@ -644,7 +644,7 @@ async function main() {
     layoutCmd.option("--rTestMesh", "Render the test mesh distance mesh", false);
     layoutCmd.option("--rRefMesh", "Render the reference mesh distance mesh", false);
     layoutCmd.option("--rFragmentBoundingBoxes", "Render fragment bounding boxes", false);
-    layoutCmd.action((srcPath, opt) => {
+    layoutCmd.action(async (srcPath, opt) => {
       const ext = extname(srcPath);
       const lang = (() => {
         switch(ext) {
@@ -674,7 +674,7 @@ async function main() {
         renderRefMesh: opt.rRefMesh,
         renderText: !opt.noText
       };
-      const result = bench(srcPath, algoStr, measure, renderSettings);
+      const result = await bench(srcPath, algoStr, measure, renderSettings);
 
       if(opt.verbose) {
         console.log("mean horz mesh distance: ", result.meanHorzMeshDistance);
