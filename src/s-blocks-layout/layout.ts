@@ -936,7 +936,7 @@ export default class SBlocksLayout implements Layout {
     this.settings = settings;
   }
 
-  layout(layoutTree: LayoutTree<WithMeasurements>): SBlocksLayoutResult {
+  async layout(layoutTree: LayoutTree<WithMeasurements>): Promise<SBlocksLayoutResult> {
     const guts = buildFragmentVector(layoutTree);
     const gutsWLeading = resolveWidths(guts);
     const withOutlines = resolveHeights(gutsWLeading, this.settings.idealLeading);

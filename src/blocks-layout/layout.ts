@@ -119,10 +119,10 @@ export class BlocksLayoutSettings implements ViewSettings {
   }
 }
 
-export default class BlocksLayout {
+export default class BlocksLayout implements alt.Layout {
   constructor(_settings: BlocksLayoutSettings) {}
 
-  layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): BlocksLayoutResult {
+  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<BlocksLayoutResult> {
     const empty: rlt.LayoutTree<rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
     const rlt: rlt.LayoutTree<rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
 

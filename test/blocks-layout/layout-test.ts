@@ -15,7 +15,7 @@ const tests = await collectLayoutTests(testDir);
 
 test.each(tests)("layout $testName", async ({testName, layoutTree, expectationPath, hasBaseline}) => {
   const alg = new BlocksLayout(new BlocksLayoutSettings());
-  const l = alg.layout(layoutTree);
+  const l = await alg.layout(layoutTree);
   const svg = toSVG(l.stack(new FragmentBoundingBoxesRendering(l)), 0);
 
   if(!hasBaseline) {

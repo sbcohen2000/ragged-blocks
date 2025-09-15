@@ -30,6 +30,7 @@ export type JoinV<X extends Ann = Ann> = {
 export type Atom<X extends Ann = Ann> = {
   type: "Atom";
   text: string;
+  pinId?: string;
 } & X["Atom"];
 
 export type Spacer<X extends Ann = Ann> = {

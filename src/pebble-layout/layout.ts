@@ -493,7 +493,7 @@ export default class PebbleLayout implements alt.Layout {
     this.settings = settings;
   }
 
-  layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): PebbleLayoutResult {
+  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<PebbleLayoutResult> {
     /**
      * Produce a unique ID.
      */

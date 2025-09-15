@@ -1,7 +1,7 @@
 import * as rb from "ragged-blocks";
 import { WorkerMsg, WorkerReponse } from "./layout-worker-message";
 
-onmessage = (e: MessageEvent<WorkerMsg<any>>) => {
+onmessage = async (e: MessageEvent<WorkerMsg<any>>) => {
   const data = e.data;
 
   if(data.type === "begin") {
@@ -10,7 +10,7 @@ onmessage = (e: MessageEvent<WorkerMsg<any>>) => {
 
       const metricsIter = rb.eachAtom(data.layoutTree);
       const algo = rb.constructAlgoByName(data.algoName)(data.algoSettings);
-      const layoutResult = algo.layout(data.layoutTree);
+      const layoutResult = await algo.layout(data.layoutTree);
       const text = new (class extends rb.Render {
         render(svg: rb.Svg, _sty: rb.SVGStyle) {
           for(const frag of layoutResult.fragmentsInfo()) {

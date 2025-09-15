@@ -22,6 +22,7 @@ export type Newline<X extends Ann = Ann> = {
 export type Atom<X extends Ann = Ann> = {
   type: "Atom";
   text: string;
+  pinId?: string;
 } & X["Atom"];
 
 export type Spacer<X extends Ann = Ann> = {
@@ -64,7 +65,7 @@ export type WithOutlines<A = {}> = {
  * object given a `LayoutTree<WithMeasurements>`.
  */
 export interface Layout {
-  layout(layoutTree: LayoutTree<WithMeasurements>): Render & FragmentsInfo;
+  layout(layoutTree: LayoutTree<WithMeasurements>): Promise<Render & FragmentsInfo>;
 }
 
 /**
