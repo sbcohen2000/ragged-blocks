@@ -20,10 +20,11 @@ import {
   OutlinedRocksLayoutSettings,
   RocksLayout,
   RocksLayoutWithPins,
+  OutlinedRocksLayoutWithPins,
   RocksLayoutSettings
 } from "./rocks-layout/layout";
 
-export type AlgorithmName = "L1P" | "L1S" | "L2AS" | "L1S+" | "Blocks" | "S-Blocks";
+export type AlgorithmName = "L1P" | "L1S" | "L1S+" | "L2AS" | "L2AS+" | "Blocks" | "S-Blocks";
 
 /**
  * Interpret `str` as an algorithm name, returning `undefined` if
@@ -37,15 +38,16 @@ export function asAlgorithmName(str: string): AlgorithmName | undefined {
   switch(str) {
     case "L1P":
     case "L1S":
-    case "L2AS":
     case "L1S+":
+    case "L2AS":
+    case "L2AS+":
     case "Blocks":
     case "S-Blocks": return str;
     default: return undefined;
   }
 }
 
-export type Algorithm = PebbleLayout | RocksLayout | RocksLayoutWithPins | OutlinedRocksLayout | BlocksLayout | SBlocksLayout;
+export type Algorithm = PebbleLayout | RocksLayout | RocksLayoutWithPins | OutlinedRocksLayout | OutlinedRocksLayoutWithPins | BlocksLayout | SBlocksLayout;
 
 /**
  * For a given `AlgorithmName`, get the type of the class which
@@ -54,8 +56,9 @@ export type Algorithm = PebbleLayout | RocksLayout | RocksLayoutWithPins | Outli
 export type AlgorithmOfName<A extends AlgorithmName> =
     A extends "L1P"      ? PebbleLayout
   : A extends "L1S"      ? RocksLayout
-  : A extends "L2AS"     ? RocksLayoutWithPins
   : A extends "L1S+"     ? OutlinedRocksLayout
+  : A extends "L2AS"     ? RocksLayoutWithPins
+  : A extends "L2AS+"    ? OutlinedRocksLayoutWithPins
   : A extends "Blocks"   ? BlocksLayout
   : A extends "S-Blocks" ? SBlocksLayout
   : never;
@@ -77,8 +80,9 @@ export function constructAlgoByName<A extends AlgorithmName>(name: A): (settings
   switch(name) {
     case "L1P": return (settings: PebbleLayoutSettings) => new PebbleLayout(settings);
     case "L1S": return (settings: RocksLayoutSettings) => new RocksLayout(settings);
-    case "L2AS": return (settings: RocksLayoutSettings) => new RocksLayoutWithPins(settings);
     case "L1S+": return (settings: OutlinedRocksLayoutSettings) => new OutlinedRocksLayout(settings);
+    case "L2AS": return (settings: RocksLayoutSettings) => new RocksLayoutWithPins(settings);
+    case "L2AS+": return (settings: OutlinedRocksLayoutSettings) => new OutlinedRocksLayoutWithPins(settings);
     case "Blocks": return (settings: BlocksLayoutSettings) => new BlocksLayout(settings);
     case "S-Blocks": return (settings: SBlocksLayoutSettings) => new SBlocksLayout(settings);
   }

@@ -263,9 +263,9 @@ export default function Root() {
               Algorithm L1S, extended with support for pins.
             </div>
             <Button
-              label={"L2AS"}
-              onClick={() => toggleLayout("L2AS")}
-              enabled={hasLayout("L2AS")}
+              label={"L2AS+"}
+              onClick={() => toggleLayout("L2AS+")}
+              enabled={hasLayout("L2AS+")}
             />
           </Tooltip>
           <Tooltip>

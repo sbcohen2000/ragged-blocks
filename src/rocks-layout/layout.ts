@@ -796,15 +796,19 @@ export class OutlinedRocksLayoutSettings implements ViewSettings {
  * simplifies them.
  */
 export class OutlinedRocksLayout implements alt.Layout {
-  private settings: OutlinedRocksLayoutSettings;
+  protected settings: OutlinedRocksLayoutSettings;
 
   constructor(settings: OutlinedRocksLayoutSettings) {
     this.settings = settings;
   }
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<OutlinedRocksLayoutResult> {
+  protected layoutUnsimplified(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
     const algo = new RocksLayout(this.settings);
-    const unsimplified = await algo.layout(layoutTree);
+    return algo.layout(layoutTree);
+  }
+
+  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<OutlinedRocksLayoutResult> {
+    const unsimplified = await this.layoutUnsimplified(layoutTree);
     const outerBBox = unsimplified.boundingBox();
     const outerOutline: Polygon = outerBBox ? [pathOfRect(outerBBox)] : [];
 
@@ -895,3 +899,13 @@ export class OutlinedRocksLayout implements alt.Layout {
   }
 }
 
+export class OutlinedRocksLayoutWithPins extends OutlinedRocksLayout {
+  constructor(settings: OutlinedRocksLayoutSettings) {
+    super(settings);
+  }
+
+  override layoutUnsimplified(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
+    const algo = new RocksLayoutWithPins(this.settings);
+    return algo.layout(layoutTree);
+  }
+}
