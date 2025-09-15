@@ -9,7 +9,7 @@ onmessage = async (e: MessageEvent<WorkerMsg<any>>) => {
       const beginTime = performance.now();
 
       const metricsIter = rb.eachAtom(data.layoutTree);
-      const algo = rb.constructAlgoByName(data.algoName)(data.algoSettings);
+      const algo = rb.constructAlgoByName(data.algoName, data.algoSettings);
       const layoutResult = await algo.layout(data.layoutTree);
       const text = new (class extends rb.Render {
         render(svg: rb.Svg, _sty: rb.SVGStyle) {

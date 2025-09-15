@@ -75,16 +75,15 @@ export type Settings<A extends AlgorithmName> =
   : A extends "S-Blocks" ? SBlocksLayoutSettings
   : never;
 
-export function constructAlgoByName<A extends AlgorithmName>(name: A): (settings: Settings<A>) => Algorithm;
-export function constructAlgoByName<A extends AlgorithmName>(name: A): (settings: any) => Algorithm {
+export function constructAlgoByName<A extends AlgorithmName>(name: A, settings: Settings<A>): Algorithm {
   switch(name) {
-    case "L1P": return (settings: PebbleLayoutSettings) => new PebbleLayout(settings);
-    case "L1S": return (settings: RocksLayoutSettings) => new RocksLayout(settings);
-    case "L1S+": return (settings: OutlinedRocksLayoutSettings) => new OutlinedRocksLayout(settings);
-    case "L2AS": return (settings: RocksLayoutSettings) => new RocksLayoutWithPins(settings);
-    case "L2AS+": return (settings: OutlinedRocksLayoutSettings) => new OutlinedRocksLayoutWithPins(settings);
-    case "Blocks": return (settings: BlocksLayoutSettings) => new BlocksLayout(settings);
-    case "S-Blocks": return (settings: SBlocksLayoutSettings) => new SBlocksLayout(settings);
+    case "L1P": return new PebbleLayout(settings as Settings<"L1P">);
+    case "L1S": return new RocksLayout(settings as Settings<"L1S">);
+    case "L1S+": return new OutlinedRocksLayout(settings as Settings<"L1S+">);
+    case "L2AS": return new RocksLayoutWithPins(settings as Settings<"L2AS">);
+    case "L2AS+": return new OutlinedRocksLayoutWithPins(settings as Settings<"L2AS+">);
+    case "Blocks": return new BlocksLayout(settings as Settings<"Blocks">);
+    case "S-Blocks": return new SBlocksLayout(settings as Settings<"S-Blocks">);
   }
 }
 

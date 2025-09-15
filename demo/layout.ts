@@ -126,7 +126,7 @@ export default async function layout<A extends rb.AlgorithmName>(
         const beginTime = performance.now();
 
         const metricsIter = rb.eachAtom(layoutTree);
-        const algo = rb.constructAlgoByName(algoName)(algoSettings);
+        const algo = rb.constructAlgoByName(algoName, algoSettings);
         const layoutResult = await algo.layout(layoutTree);
         const text = new (class extends rb.Render {
           render(svg: rb.Svg, _sty: rb.SVGStyle) {

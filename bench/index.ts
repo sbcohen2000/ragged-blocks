@@ -194,6 +194,8 @@ function mkMeasure(font: string): (text: string) => rb.Rect {
   };
 };
 
+type AlgorithmName = rb.AlgorithmName | "Unstyled" | "BlocksNS";
+
 type BenchResult = {
   meanHorzMeshDistance: number;
   horzMeshDistances: number[];
@@ -203,38 +205,44 @@ type BenchResult = {
   nFragments: number;
   duration: number;
   basename: string;
-  algoStr: Algo;
+  algoName: AlgorithmName;
   renderable: rb.Render;
 }
 
-type Algo = "Unstyled" | "L1S" | "L1S+" | "L1P" | "S-Blocks" | "BlocksNS" | "Blocks";
-
-function asAlgo(text: string): Algo {
-  switch(text) {
-    case "Unstyled":
-    case "L1S":
-    case "L1S+":
-    case "L1P":
-    case "S-Blocks":
-    case "BlocksNS":
-    case "Blocks": return text;
-    default:
-      throw new Error(`Unknown layout algorithm (${text}). Exiting.`);
+function asAlgorithmName(str: string): AlgorithmName {
+  if(str === "Unstyled") {
+    return asAlgorithmName("L1P");
+  } else if(str === "BlocksNS") {
+    return asAlgorithmName("BlocksNS");
+  } else {
+    const nm = rb.asAlgorithmName(str);
+    if(nm === undefined) {
+      throw new Error(`Unknown layout algorithm (${str})`);
+    }
+    return nm;
   }
 }
 
-function algoContrOfAlgoStr(algoStr: Algo): rb.Layout {
-  switch(algoStr) {
-    case "Unstyled":
-    case "L1P": return new rb.PebbleLayout(new rb.PebbleLayoutSettings(true, 20));
-    case "L1S": return new rb.RocksLayout(new rb.RocksLayoutSettings(true, 20));
-    case "L1S+": return new rb.OutlinedRocksLayout(new rb.OutlinedRocksLayoutSettings(true, 20, true));
-    case "S-Blocks": return new rb.SBlocksLayout(new rb.SBlocksLayoutSettings(20));
-    case "BlocksNS":
-    case "Blocks": return new rb.BlocksLayout(new rb.BlocksLayoutSettings());
+function settingsOfAlgoName<A extends rb.AlgorithmName>(algoName: A): rb.Settings<A>;
+function settingsOfAlgoName<A extends rb.AlgorithmName>(algoName: A): any {
+  switch(algoName) {
+    case "L1P": return new rb.PebbleLayoutSettings(true, 20);
+    case "L1S": return new rb.RocksLayoutSettings(true, 20);
+    case "L1S+": return new rb.OutlinedRocksLayoutSettings(true, 20, true);
+    case "S-Blocks": return new rb.SBlocksLayoutSettings(20);
+    case "Blocks": return new rb.BlocksLayoutSettings();
     default:
-      throw new Error(`Unknown layout algorithm (${algoStr}). Exiting.`);
+      throw new Error(`Unknown layout algorithm (${algoName})`);
   }
+}
+
+function algoConstrOfAlgoName<A extends AlgorithmName>(algoName: A): rb.Layout {
+  let underlyingAlgoName: AlgorithmName
+      = algoName === "Unstyled"
+        ? "L1P" : algoName === "BlocksNS"
+          ? "Blocks" : algoName;
+
+  return rb.constructAlgoByName(underlyingAlgoName, settingsOfAlgoName(underlyingAlgoName));
 }
 
 function langOfSrcPath(srcPath: string): any {
@@ -244,17 +252,17 @@ function langOfSrcPath(srcPath: string): any {
     case ".py": return Python;
     case ".hs": return Haskell;
     default:
-      throw new Error(`Unknown input file extension (${ext}). Exiting.`);
+      throw new Error(`Unknown input file extension (${ext})`);
   }
 }
 
-async function measureRuntime(srcPath: string, algoStr: Algo, iters: number): Promise<number> {
-  const algo = algoContrOfAlgoStr(algoStr);
+async function measureRuntime(srcPath: string, algoName: AlgorithmName, iters: number): Promise<number> {
+  const algo = algoConstrOfAlgoName(algoName);
   const ext = extname(srcPath);
   const lang = langOfSrcPath(srcPath);
 
   const settings: ParseSettings = {
-    useSpacers: algoStr !== "BlocksNS",
+    useSpacers: algoName !== "BlocksNS",
     breakMultiLineAtoms: ext === ".py",
   };
 
@@ -288,19 +296,24 @@ const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   renderTestMesh: false
 };
 
-async function bench(srcPath: string, algoStr: Algo, measure: (text: string) => rb.Rect, renderSettings?: Partial<RenderSettings>): Promise<BenchResult> {
+async function bench(
+  srcPath: string,
+  algoName: AlgorithmName,
+  measure: (text: string) => rb.Rect,
+  renderSettings?: Partial<RenderSettings>
+): Promise<BenchResult> {
   if(!renderSettings) {
     renderSettings = {};
   }
   renderSettings = { ...DEFAULT_RENDER_SETTINGS, ...renderSettings };
 
-  console.log(`Working on ${algoStr}...`);
-  const testAlgo = algoContrOfAlgoStr(algoStr);
+  console.log(`Working on ${algoName}...`);
+  const testAlgo = algoConstrOfAlgoName(algoName);
   const ext = extname(srcPath);
   const lang = langOfSrcPath(srcPath);
 
   const settings: ParseSettings = {
-    useSpacers: algoStr !== "BlocksNS",
+    useSpacers: algoName !== "BlocksNS",
     breakMultiLineAtoms: ext === ".py",
   };
 
@@ -313,12 +326,12 @@ async function bench(srcPath: string, algoStr: Algo, measure: (text: string) => 
   rb.removePadding(refTree);
   let refTreeWithMeasurements = rb.measureLayoutTree(refTree, measure);
 
-  if(algoStr === "Unstyled") {
+  if(algoName === "Unstyled") {
     testTreeWithMeasurements = refTreeWithMeasurements;
   }
 
   let refMesh: rb.MeshDistanceMesh | undefined = undefined;
-  if(algoStr !== "Unstyled") {
+  if(algoName !== "Unstyled") {
     const refAlgo = new rb.RocksLayout(new rb.RocksLayoutSettings(true, 20));
     const refResult = await refAlgo.layout(refTreeWithMeasurements);
     refMesh = rb.MeshDistanceMesh.fromFragments(refResult);
@@ -385,15 +398,15 @@ async function bench(srcPath: string, algoStr: Algo, measure: (text: string) => 
     nFragments: testMesh.countFragments(),
     duration,
     basename: basename(srcPath),
-    algoStr,
+    algoName: algoName,
     renderable: rendering
   }
 }
 
 
-async function benchAll(srcPath: string): Promise<Map<Algo, BenchResult>> {
-  const algos: Algo[] = ["Unstyled", "L1P", "L1S", "S-Blocks", "BlocksNS", "Blocks"];
-  let out: Map<Algo, BenchResult> = new Map();
+async function benchAll(srcPath: string): Promise<Map<AlgorithmName, BenchResult>> {
+  const algos: AlgorithmName[] = ["Unstyled", "L1P", "L1S", "S-Blocks", "BlocksNS", "Blocks"];
+  let out: Map<AlgorithmName, BenchResult> = new Map();
   for(const algo of algos) {
     const result = await bench(srcPath, algo, measureFallback, { renderText: false });
     out.set(algo, result);
@@ -469,7 +482,7 @@ async function mkErrorTables(forLaTeX: boolean) {
     "./inputs/layout.hs",
   ];
 
-  let data: Map<string, Map<Algo, BenchResult>> = new Map();
+  let data: Map<string, Map<AlgorithmName, BenchResult>> = new Map();
   for(const srcPath of srcPaths) {
     console.log(`>>>>>>>>>>> Benching ${srcPath} <<<<<<<<<<<`);
 
@@ -652,7 +665,7 @@ async function main() {
           case ".py": return Python;
           case ".hs": return Haskell;
           default:
-            console.error(`Unknown input file extension (${ext}). Exiting.`);
+            console.error(`Unknown input file extension (${ext})`);
             exit(1);
         }
       })();
@@ -666,7 +679,7 @@ async function main() {
         console.log(`Using ${lang.name} parser.`);
       }
 
-      const algoStr = asAlgo(opt.algorithm);
+      const algoName = asAlgorithmName(opt.algorithm);
       const measure = mkMeasure("./Inconsolata-Medium.otf");
       const renderSettings: RenderSettings = {
         renderFragmentBoundingBoxes: opt.rFragmentBoundingBoxes,
@@ -674,7 +687,7 @@ async function main() {
         renderRefMesh: opt.rRefMesh,
         renderText: !opt.noText
       };
-      const result = await bench(srcPath, algoStr, measure, renderSettings);
+      const result = await bench(srcPath, algoName, measure, renderSettings);
 
       if(opt.verbose) {
         console.log("mean horz mesh distance: ", result.meanHorzMeshDistance);
