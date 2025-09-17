@@ -97,7 +97,14 @@ export default function Root() {
       return ["L1S+"];
     }
 
-    const res = JSON.parse(str);
+    let res: any;
+    try {
+      res = JSON.parse(str);
+    } catch(e) {
+      console.warn(e);
+      return ["L1S+"];
+    }
+
     if(Array.isArray(res) && res.every(elem => typeof elem === "string")) {
       return res
         .map(rb.asAlgorithmName)
