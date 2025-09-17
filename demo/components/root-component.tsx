@@ -78,7 +78,7 @@ export default function Root() {
     { type: "Node", children: [], padding: 0 },
   );
   const [editorValue, setEditorValue] = react.useState<string>(
-    localStorage.getItem("editorValue") ?? EXAMPLE_PROGRAMS.abs,
+    localStorage.getItem("editorValue") ?? EXAMPLE_PROGRAMS.Abs,
   );
   const [statusText, setStatusText] = react.useState<string>("");
   const [parseError, setParseError] = react.useState<string>("");
