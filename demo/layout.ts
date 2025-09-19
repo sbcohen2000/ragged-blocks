@@ -125,17 +125,18 @@ export default async function layout<A extends rb.AlgorithmName>(
 
         const beginTime = performance.now();
 
-        const metricsIter = rb.eachAtom(layoutTree);
+        const atomsIter = rb.eachAtomWithInheritedStyles(layoutTree);
         const algo = rb.constructAlgoByName(algoName, algoSettings);
         const layoutResult = await algo.layout(layoutTree);
         const text = new (class extends rb.Render {
           render(svg: rb.Svg, _sty: rb.SVGStyle) {
             for(const frag of layoutResult.fragmentsInfo()) {
-              const metrics = metricsIter.next().value as rb.Atom<rb.WithMeasurements>;
+              const atom = atomsIter.next().value as rb.Atom<rb.WithMeasurements<rb.WithStyles>>;
               const text = svg.text(frag.text);
               text.fontFamily("Inconsolata-Medium");
               text.fontSize("12px");
-              text.move(frag.rect.left, frag.rect.top - metrics.rect.top);
+              text.fill(atom.sty.color);
+              text.move(frag.rect.left, frag.rect.top - atom.rect.top);
             }
           }
 

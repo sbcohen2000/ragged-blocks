@@ -215,6 +215,7 @@ const pStyleAttr: Parsimmon.Parser<Style> =
         pKeyValuePair(pKeyword("padding"), pNumber).map(mkStyle),
         pKeyValuePair(pKeyword("fill"), pColor).map(mkStyle),
         pKeyValuePair(pKeyword("stroke"), pColor).map(mkStyle),
+        pKeyValuePair(pKeyword("color"), pColor).map(mkStyle),
         pBorderSpec.map(v => ({ borders: [v] }))
       )
 

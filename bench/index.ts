@@ -356,15 +356,16 @@ async function bench(
     vertMeshDistances = refMesh.verticalMeshDistances(testMesh);
   }
 
-  const metricsIter = rb.eachAtom(testTreeWithMeasurements);
+  const atomsIter = rb.eachAtomWithInheritedStyles(testTreeWithMeasurements);
   const text = new (class extends rb.Render {
     render(svg: rb.Svg, _sty: rb.SVGStyle) {
       for(const frag of testResult.fragmentsInfo()) {
-        const metrics = metricsIter.next().value as rb.Atom<rb.WithMeasurements>;
+        const atom = atomsIter.next().value as rb.Atom<rb.WithMeasurements<rb.WithStyles>>;
         const text = svg.text(frag.text);
         text.fontFamily("Inconsolata Medium");
         text.fontSize("12px");
-        text.move(frag.rect.left, frag.rect.top - metrics.rect.top);
+        text.fill(atom.sty.color);
+        text.move(frag.rect.left, frag.rect.top - atom.rect.top);
       }
     }
 

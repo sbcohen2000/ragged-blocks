@@ -196,24 +196,35 @@ export function removePadding<A extends Ann>(tree: LayoutTree<A>) {
   go(tree);
 }
 
+export type WithStyles<A = {}> = {
+  Atom:    { sty: Partial<SVGStyle> };
+  Spacer:  object;
+  Newline: object;
+  Node:    object;
+} & A;
+
 /**
- * Yield each `Atom` in a `LayoutTree` in document order.
+ * Yield each `Atom` in a `LayoutTree` in document order. Each `Atom`
+ * is also annotated with the styles applied to the nearest `Node`.
  *
  * @param tree The tree to iterate over.
  * @returns An iterator over `tree`'s `Atom`s.
  */
-export function *eachAtom<A extends Ann>(tree: LayoutTree<A>): IterableIterator<Atom<A>> {
+export function *eachAtomWithInheritedStyles<A extends Ann>(tree: LayoutTree<A>): IterableIterator<Atom<WithStyles<A>>> {
   const stack: LayoutTree<A>[] = [tree];
+  const styStack: Partial<SVGStyle>[] = [{}];
 
   while(stack.length > 0) {
     const top = stack.pop()!;
+    const sty = styStack.pop()!;
 
     if(top.type === "Node") {
       for(let i = top.children.length - 1; i >= 0; --i) {
         stack.push(top.children[i]);
+        styStack.push({ ...sty, ...top.sty });
       }
     } else if(top.type === "Atom") {
-      yield top;
+      yield { ...top, sty };
     }
   }
 }

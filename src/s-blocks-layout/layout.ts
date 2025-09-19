@@ -8,7 +8,7 @@ import {
   WithMeasurements,
   WithOutlines,
   Ann,
-  eachAtom
+  eachAtomWithInheritedStyles
 } from "../layout-tree";
 import { Polygon, PolygonRendering } from "../polygon";
 import { Rect, clone, width, height, translate } from "../rect";
@@ -902,7 +902,7 @@ class SBlocksLayoutResult extends Render implements FragmentsInfo {
 
   fragmentsInfo(): FragmentInfo[] {
     let out: FragmentInfo[] = [];
-    for(const atom of eachAtom(this.layoutTree)) {
+    for(const atom of eachAtomWithInheritedStyles(this.layoutTree)) {
       out.push({
         rect: atom.rect,
         lineNo: atom.line,
