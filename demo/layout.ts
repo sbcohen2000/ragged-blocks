@@ -133,7 +133,8 @@ export default async function layout<A extends rb.AlgorithmName>(
             for(const frag of layoutResult.fragmentsInfo()) {
               const metrics = metricsIter.next().value as rb.Atom<rb.WithMeasurements>;
               const text = svg.text(frag.text);
-              text.font("Inconsolata-Medium", 12);
+              text.fontFamily("Inconsolata-Medium");
+              text.fontSize("12px");
               text.move(frag.rect.left, frag.rect.top - metrics.rect.top);
             }
           }
