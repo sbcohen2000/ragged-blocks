@@ -7,6 +7,9 @@
 .helpTextLayout {
     /* This item isn't allowed to shrink! */
     flex-shrink: 0;
+}
+
+.helpTextLayoutStickyBox {
     top: 20px;
     position: sticky;
 }
