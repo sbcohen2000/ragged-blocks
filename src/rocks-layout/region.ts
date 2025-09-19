@@ -26,6 +26,17 @@ export function singletonRange(index: number): Range {
 }
 
 /**
+ * Construct a new `Region` covering only `index` with `depth`.
+ *
+ * @param index The `index` to cover.
+ * @param depth The depth at which to cover `index`.
+ * @returns A `Region` covering `index` at `depth`.
+ */
+export function singletonRegion(index: number, depth: number): Region {
+  return { range: singletonRange(index), depth };
+}
+
+/**
  * A range of rectangles, along with a depth. This is effectively an
  * index into the `Timetable`.
  */

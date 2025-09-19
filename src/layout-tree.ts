@@ -5,8 +5,8 @@
 
 import { Point } from "./point";
 import { Polygon } from "./polygon";
-import { Rect, width } from "./rect";
-import { DEFAULT_BORDER_STYLE, DEFAULT_STYLE, Render, SVGStyle } from "./render";
+import { Rect, width, height, union } from "./rect";
+import { DEFAULT_BORDER_STYLE, DEFAULT_STYLE, Svg, Render, SVGStyle } from "./render";
 
 export interface Ann {
   Newline: object;
@@ -22,6 +22,7 @@ export type Newline<X extends Ann = Ann> = {
 export type Atom<X extends Ann = Ann> = {
   type: "Atom";
   text: string;
+  pinId?: string;
 } & X["Atom"];
 
 export type Spacer<X extends Ann = Ann> = {
@@ -64,7 +65,7 @@ export type WithOutlines<A = {}> = {
  * object given a `LayoutTree<WithMeasurements>`.
  */
 export interface Layout {
-  layout(layoutTree: LayoutTree<WithMeasurements>): Render & FragmentsInfo;
+  layout(layoutTree: LayoutTree<WithMeasurements>): Promise<Render & FragmentsInfo>;
 }
 
 /**
@@ -195,24 +196,72 @@ export function removePadding<A extends Ann>(tree: LayoutTree<A>) {
   go(tree);
 }
 
+export type WithStyles<A = {}> = {
+  Atom:    { sty: Partial<SVGStyle> };
+  Spacer:  object;
+  Newline: object;
+  Node:    object;
+} & A;
+
 /**
- * Yield each `Atom` in a `LayoutTree` in document order.
+ * Yield each `Atom` in a `LayoutTree` in document order. Each `Atom`
+ * is also annotated with the styles applied to the nearest `Node`.
  *
  * @param tree The tree to iterate over.
  * @returns An iterator over `tree`'s `Atom`s.
  */
-export function *eachAtom<A extends Ann>(tree: LayoutTree<A>): IterableIterator<Atom<A>> {
+export function *eachAtomWithInheritedStyles<A extends Ann>(tree: LayoutTree<A>): IterableIterator<Atom<WithStyles<A>>> {
   const stack: LayoutTree<A>[] = [tree];
+  const styStack: Partial<SVGStyle>[] = [{}];
 
   while(stack.length > 0) {
     const top = stack.pop()!;
+    const sty = styStack.pop()!;
 
     if(top.type === "Node") {
       for(let i = top.children.length - 1; i >= 0; --i) {
         stack.push(top.children[i]);
+        styStack.push({ ...sty, ...top.sty });
       }
     } else if(top.type === "Atom") {
-      yield top;
+      yield { ...top, sty };
     }
   }
 }
+
+/**
+ * Given a type which implements `FragmentsInfo`, produce a
+ * `Render`able object which renders the positions of each fragment
+ * with a white box with black stroke.
+ */
+export class FragmentBoundingBoxesRendering extends Render {
+  private layoutResult: FragmentsInfo;
+
+  constructor(layoutResult: FragmentsInfo) {
+    super();
+    this.layoutResult = layoutResult;
+  }
+
+  render(svg: Svg, _sty: SVGStyle) {
+    for(const frag of this.layoutResult.fragmentsInfo()) {
+      svg.rect(width(frag.rect), height(frag.rect))
+        .move(frag.rect.left, frag.rect.top)
+        .fill("white")
+        .stroke("black")
+        .strokeWidth(1);
+    }
+  }
+
+  boundingBox(): Rect | null {
+    let bbox: Rect | null = null;
+    for(const frag of this.layoutResult.fragmentsInfo()) {
+      if(bbox === null) {
+        bbox = frag.rect;
+      } else {
+        bbox = union(bbox, frag.rect);
+      }
+    }
+    return bbox;
+  }
+}
+

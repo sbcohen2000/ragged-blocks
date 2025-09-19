@@ -78,7 +78,7 @@ export default function Root() {
     { type: "Node", children: [], padding: 0 },
   );
   const [editorValue, setEditorValue] = react.useState<string>(
-    localStorage.getItem("editorValue") ?? EXAMPLE_PROGRAMS.abs,
+    localStorage.getItem("editorValue") ?? EXAMPLE_PROGRAMS.Abs,
   );
   const [statusText, setStatusText] = react.useState<string>("");
   const [parseError, setParseError] = react.useState<string>("");
@@ -91,9 +91,38 @@ export default function Root() {
     setStatusText("Changes saved.");
   }, []);
 
-  const [activeLayouts, setActiveLayouts] = react.useState<rb.AlgorithmName[]>(
-    ["L1S+"],
-  );
+  const [activeLayouts, _setActiveLayouts] = react.useState<rb.AlgorithmName[]>(() => {
+    const str = localStorage.getItem("activeLayouts");
+    if(str === null) {
+      return ["L1S+"];
+    }
+
+    let res: any;
+    try {
+      res = JSON.parse(str);
+    } catch(e) {
+      console.warn(e);
+      return ["L1S+"];
+    }
+
+    if(Array.isArray(res) && res.every(elem => typeof elem === "string")) {
+      return res
+        .map(rb.asAlgorithmName)
+        .filter(elem => elem !== undefined);
+    }
+
+    return ["L1S+"];
+  });
+
+  const setActiveLayouts = (updateFn: (oldLayouts: rb.AlgorithmName[]) => rb.AlgorithmName[]) => {
+    _setActiveLayouts(activeLayouts => {
+      const newActiveLayouts = updateFn(activeLayouts);
+      // Update the local storage so that we retain the user's choice
+      // of active layouts after page reloads.
+      localStorage.setItem("activeLayouts", JSON.stringify(newActiveLayouts));
+      return newActiveLayouts;
+    });
+  };
 
   const onChange = react.useCallback((val: string) => {
     const result = parseExample(val);
@@ -164,7 +193,7 @@ export default function Root() {
     <div>
       <div className={styles.row}>
         <span className={styles.label}>View on <a href={"https://github.com/sbcohen2000/ragged-blocks"}>GitHub</a></span>
-        <span className={styles.label}>v1.0.1</span>
+        <span className={styles.label}>v1.1.0</span>
       </div>
       <div className={styles.sectionLine}></div>
       <Dropdown isOpen={aboutOpen} onChange={setAboutOpen} label={"About"}>
@@ -234,6 +263,16 @@ export default function Root() {
               label={"L1S+"}
               onClick={() => toggleLayout("L1S+")}
               enabled={hasLayout("L1S+")}
+            />
+          </Tooltip>
+          <Tooltip>
+            <div className={styles.tooltipContent}>
+              Algorithm L1S, extended with support for pins.
+            </div>
+            <Button
+              label={"L2AS+"}
+              onClick={() => toggleLayout("L2AS+")}
+              enabled={hasLayout("L2AS+")}
             />
           </Tooltip>
           <Tooltip>

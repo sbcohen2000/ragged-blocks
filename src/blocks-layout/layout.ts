@@ -50,15 +50,7 @@ class BlocksLayoutResult extends Render implements FragmentsInfo {
           go(root.lhs);
           go(root.rhs);
         } break;
-        case "Atom": {
-          if(sty.debugFragmentBoundingBoxes) {
-            svg
-              .rect(width(root.rect), height(root.rect))
-              .fill("white")
-              .stroke("black")
-              .move(root.rect.left, root.rect.top)
-          }
-        } break;
+        case "Atom":
         case "Spacer": break;
         case "Wrap": {
           if(width(root.rect) > 0 && height(root.rect) > 0) {
@@ -127,10 +119,10 @@ export class BlocksLayoutSettings implements ViewSettings {
   }
 }
 
-export default class BlocksLayout {
+export default class BlocksLayout implements alt.Layout {
   constructor(_settings: BlocksLayoutSettings) {}
 
-  layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): BlocksLayoutResult {
+  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<BlocksLayoutResult> {
     const empty: rlt.LayoutTree<rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
     const rlt: rlt.LayoutTree<rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
 

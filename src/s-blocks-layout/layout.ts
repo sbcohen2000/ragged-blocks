@@ -8,7 +8,7 @@ import {
   WithMeasurements,
   WithOutlines,
   Ann,
-  eachAtom
+  eachAtomWithInheritedStyles
 } from "../layout-tree";
 import { Polygon, PolygonRendering } from "../polygon";
 import { Rect, clone, width, height, translate } from "../rect";
@@ -871,17 +871,8 @@ class SBlocksLayoutResult extends Render implements FragmentsInfo {
   render(svg: Svg, sty: SVGStyle): void {
     const go = (root: LayoutTree<WithMeasurements<WithOutlines>>) => {
       switch(root.type) {
-        case "Newline": break;
-        case "Atom": {
-          if(sty.debugFragmentBoundingBoxes) {
-            const r = root.rect;
-            svg
-              .rect(width(r), height(r))
-              .fill("white")
-              .stroke("black")
-              .move(r.left, r.top);
-          }
-        } break;
+        case "Newline":
+        case "Atom":
         case "Spacer": break;
         case "Node": {
           const r = new PolygonRendering(root.outline).withStyles({
@@ -911,7 +902,7 @@ class SBlocksLayoutResult extends Render implements FragmentsInfo {
 
   fragmentsInfo(): FragmentInfo[] {
     let out: FragmentInfo[] = [];
-    for(const atom of eachAtom(this.layoutTree)) {
+    for(const atom of eachAtomWithInheritedStyles(this.layoutTree)) {
       out.push({
         rect: atom.rect,
         lineNo: atom.line,
@@ -945,7 +936,7 @@ export default class SBlocksLayout implements Layout {
     this.settings = settings;
   }
 
-  layout(layoutTree: LayoutTree<WithMeasurements>): SBlocksLayoutResult {
+  async layout(layoutTree: LayoutTree<WithMeasurements>): Promise<SBlocksLayoutResult> {
     const guts = buildFragmentVector(layoutTree);
     const gutsWLeading = resolveWidths(guts);
     const withOutlines = resolveHeights(gutsWLeading, this.settings.idealLeading);

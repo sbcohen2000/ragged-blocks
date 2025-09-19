@@ -1,11 +1,12 @@
 {
     "name": "bench",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "private": true,
     "scripts": {
         "bench": "npx tsx index.ts"
     },
     "dependencies": {
+        "@julusian/freetype2": "^1.2.1",
         "commander": "^14.0.0",
         "ragged-blocks": "file:../",
         "tree-sitter": "^0.21.0",

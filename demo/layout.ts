@@ -125,16 +125,18 @@ export default async function layout<A extends rb.AlgorithmName>(
 
         const beginTime = performance.now();
 
-        const metricsIter = rb.eachAtom(layoutTree);
-        const algo = rb.constructAlgoByName(algoName)(algoSettings);
-        const layoutResult = algo.layout(layoutTree);
+        const atomsIter = rb.eachAtomWithInheritedStyles(layoutTree);
+        const algo = rb.constructAlgoByName(algoName, algoSettings);
+        const layoutResult = await algo.layout(layoutTree);
         const text = new (class extends rb.Render {
           render(svg: rb.Svg, _sty: rb.SVGStyle) {
             for(const frag of layoutResult.fragmentsInfo()) {
-              const metrics = metricsIter.next().value as rb.Atom<rb.WithMeasurements>;
+              const atom = atomsIter.next().value as rb.Atom<rb.WithMeasurements<rb.WithStyles>>;
               const text = svg.text(frag.text);
-              text.font("Inconsolata-Medium", 12);
-              text.move(frag.rect.left, frag.rect.top - metrics.rect.top);
+              text.fontFamily("Inconsolata-Medium");
+              text.fontSize("12px");
+              text.fill(atom.sty.color);
+              text.move(frag.rect.left, frag.rect.top - atom.rect.top);
             }
           }
 
@@ -149,13 +151,13 @@ export default async function layout<A extends rb.AlgorithmName>(
           result = result.stack(mesh);
         }
 
+        if(renderSettings.renderFragmentBoundingBoxes) {
+          result = result.stack(new rb.FragmentBoundingBoxesRendering(layoutResult));
+        }
+
         result = result.stack(text);
 
-        const svgSrc = rb.toSVG(
-          result,
-          10,
-          renderSettings.renderFragmentBoundingBoxes
-        );
+        const svgSrc = rb.toSVG(result, 10);
 
         const endTime = performance.now();
         const duration = endTime - beginTime;

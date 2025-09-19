@@ -51,20 +51,26 @@ export const DEFAULT_BORDER_STYLE: BorderStyle = {
  * The styles to apply to a rendering.
  */
 export type SVGStyle = {
+  /**
+   * The color of filled shapes (such as rectangles or polygons).
+   */
   fill: string;
+  /**
+   * The color of text.
+   */
+  color: string;
   borders: Partial<BorderStyle>[];
   /**
    * The color of (non-border) strokes (i.e. line segments).
    */
   stroke: string;
-  debugFragmentBoundingBoxes: boolean;
 };
 
 export const DEFAULT_STYLE: SVGStyle = {
+  color: "black",
   fill: "white",
   stroke: "black",
   borders: [],
-  debugFragmentBoundingBoxes: false,
 }
 
 export abstract class Render {
@@ -102,15 +108,11 @@ export abstract class Render {
  * @param a The value to render as an SVG.
  * @param window The optional window object to use instead of the
  * default window.
- * @param debugFragmentBoundingBoxes An optional flag which, when
- * true, will instruct the renderer to include renderings of the base
- * fragment rectangles in the output.
  * @returns An SVG, serialized as a string.
  */
 export function toSVG<A extends Render>(
   a: A,
   padding?: number,
-  debugFragmentBoundingBoxes?: boolean
 ): string {
   if(!padding) {
     padding = 0;
@@ -118,9 +120,6 @@ export function toSVG<A extends Render>(
 
   const svg = new Svg();
   const sty = DEFAULT_STYLE;
-  if(debugFragmentBoundingBoxes !== undefined) {
-    sty.debugFragmentBoundingBoxes = debugFragmentBoundingBoxes;
-  }
   a.render(svg, sty);
 
   let bbox = a.boundingBox();
@@ -193,19 +192,20 @@ export class EmptyRendering extends Render {
   }
 }
 
-type SVGTextElement = {
-  type: "text";
-  text: string;
-  x: number;
-  y: number;
-  style?: string;
-};
-
 interface SVGFillAndStroke {
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
 };
+
+type SVGTextElement = {
+  type: "text";
+  text: string;
+  x: number;
+  y: number;
+  fontFamily?: string;
+  fontSize?: string;
+} & SVGFillAndStroke;
 
 type SVGRectElement = {
   type: "rect";
@@ -240,29 +240,36 @@ function sanitize(str: string) {
 
 function buildElement(elt: SVGElement): string {
   let strokeProperties = "";
-  if(elt.type === "rect" || elt.type === "path" || elt.type === "line") {
-    if(elt.fill !== undefined) {
-      strokeProperties += ` fill=\"${elt.fill}\"`;
-    }
-
-    if(elt.stroke !== undefined) {
-      strokeProperties += ` stroke=\"${elt.stroke}\"`;
-    }
-
-    if(elt.strokeWidth !== undefined) {
-      strokeProperties += ` stroke-width=\"${elt.strokeWidth}\"`;
-    }
+  if(elt.fill !== undefined) {
+    strokeProperties += ` fill=\"${elt.fill}\"`;
   }
 
+  if(elt.stroke !== undefined) {
+    strokeProperties += ` stroke=\"${elt.stroke}\"`;
+  }
+
+  if(elt.strokeWidth !== undefined) {
+    strokeProperties += ` stroke-width=\"${elt.strokeWidth}\"`;
+  }
 
   switch(elt.type) {
     case "text": {
       let out = `<text x=\"${elt.x}\" y=\"${elt.y}\"`;
-      if(elt.style) {
-        out += ` style=\"${elt.style}\"`;
+
+      if(elt.fontFamily || elt.fontSize) {
+        out += " style=\"";
+        if(elt.fontFamily) {
+          out += `font-family:${elt.fontFamily};`;
+        }
+
+        if(elt.fontSize) {
+          out += ` font-size:${elt.fontSize};`;
+        }
+        out += "\"";
       }
+
       const text = sanitize(elt.text)
-      return `${out}>${text}</text>`;
+      return `${out}${strokeProperties}>${text}</text>`;
     };
     case "rect":
       return `<rect x=\"${elt.x}\" y=\"${elt.y}\" width=\"${elt.width}\" height=\"${elt.height}\"${strokeProperties} />`;
@@ -412,9 +419,10 @@ class SvgLineBuilder extends FillAndStrokeBuilder {
   }
 }
 
-class SvgTextBuilder {
+class SvgTextBuilder extends FillAndStrokeBuilder {
   private it: SVGTextElement;
   constructor(it: SVGTextElement) {
+    super(it);
     this.it = it;
   }
 
@@ -424,10 +432,13 @@ class SvgTextBuilder {
     return this;
   }
 
-  font(family: string, size: number) {
-    // HACK: These style properties should be set in a more principled
-    // way.
-    this.it.style = `font-family:${family};font-size: ${size}px;white-space: pre`;
+  fontFamily(family: string) {
+    this.it.fontFamily = family;
+    return this;
+  }
+
+  fontSize(size: string) {
+    this.it.fontSize = size;
     return this;
   }
 }

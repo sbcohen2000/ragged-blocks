@@ -9,14 +9,14 @@ export type Point = {
 };
 
 /**
- * Modify a point by pairwise-adding the components of a `Vector`
+ * Return a new point which has been translated by `v`.
  *
- * @param p The `Point` to modify.
- * @param v The `Vector` by which to modify `p`.
+ * @param p The original `Point`.
+ * @param v The `Vector` by which to translate `p`.
+ * @returns A new point, `p` + `v`.
  */
 export function addVector(p: Point, v: Vector) {
-  p.x += v.dx;
-  p.y += v.dy;
+  return { x: p.x + v.dx, y: p.y + v.dy };
 }
 
 /**

@@ -248,10 +248,12 @@ export default function HelpText(props: HelpTextProps) {
       </div>
       <div className={styles.helpTextVerticalLine}></div>
       <div className={styles.helpTextLayout}>
-        <LayoutView
-          layoutTree={exampleLayoutTree}
-          algoName={"L1S+"}
-          measure={props.measure}/>
+        <div className={styles.helpTextLayoutStickyBox}>
+          <LayoutView
+            layoutTree={exampleLayoutTree}
+            algoName={"L1S+"}
+            measure={props.measure}/>
+        </div>
       </div>
     </div>
   );

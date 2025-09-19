@@ -8,7 +8,6 @@ import layout, { LayoutResult, RenderSettings } from "../layout";
 import {
   faGear,
   faDownload,
-  faCircleMinus,
 } from "@fortawesome/free-solid-svg-icons";
 import Tooltip from "./tooltip-component";
 
@@ -66,11 +65,15 @@ export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutView
   const [layoutSettings, setLayoutSettings] = react.useState<rb.Settings<A>>((() => {
     switch (props.algoName) {
       case "L1P":
-        return new rb.PebbleLayoutSettings(10);
+        return new rb.PebbleLayoutSettings(true, 10);
       case "L1S":
-        return new rb.RocksLayoutSettings(10);
+        return new rb.RocksLayoutSettings(true, 10);
       case "L1S+":
-        return new rb.OutlinedRocksLayoutSettings(10, true);
+        return new rb.OutlinedRocksLayoutSettings(true, 10, true);
+      case "L2AS":
+        return new rb.RocksLayoutSettings(true, 10);
+      case "L2AS+":
+        return new rb.OutlinedRocksLayoutSettings(true, 10, true);
       case "Blocks":
         return new rb.BlocksLayoutSettings();
       case "S-Blocks":
