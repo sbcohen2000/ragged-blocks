@@ -1,8 +1,8 @@
 export const EXAMPLE_PROGRAMS = {
   "Abs": `
 const [abs]@nm = [([x]@nm) =>
-  [[[x]@nm < 0]@e ? [-[x]@nm]@e
-        : [[x]@nm]@e]@e]@e
+  [[[x]@nm < 0]@e a#? [-[b#x]@nm]@e
+        a#: [[b#x]@nm]@e]@e]@e
 
 @nm {
   fill: #FAFA37;
@@ -15,7 +15,7 @@ const [abs]@nm = [([x]@nm) =>
   border: 1 2        #D27D46;
   border: 1 1 -1 #FFCBA4 top right;
 }`,
-"List Comprehension": `
+  "List Comprehension": `
 [pairs]@nm =
   [\\[ [([i]@nm, [j]@nm)]@expr
      [for [i]@nm in [range([0]@nm, [10]@nm)]@expr
@@ -101,27 +101,55 @@ main =
   "CLOC: Step 5": `
 main =
   [getContents
-    >>= [print
-      . length
-      . filter (not . isPrefixOf "--")
-      . lines]@lr]@rl
+    [>>=]@lrop [print
+      [.]@rlop length
+      [.]@rlop filter (not [.]@rlop isPrefixOf "--")
+      [.]@rlop lines]@lr]@rl
 
-@lr {
+@lrop {
+  color: indigo;
+}
+
+@rl {
   border: 1.1 2 indigo;
   fill: lavender;
   padding: 4;
 }
 
-@rl {
+@rlop {
+  color: orange;
+}
+
+@lr {
   border: 1.1 2 orange;
   fill: papayawhip;
   padding: 4;
 }`,
   "CLOC: Step 6": `
-main =
+[main]@nm =
   getContents
-    >>= print
-    >>> length
-    >>> filter (not . isPrefixOf "--")
-    >>> lines`
+    [>>=]@lr print
+    [>>>]@lr length
+    [>>>]@lr filter (not [.]@rl isPrefixOf ["--"]@str)
+    [>>>]@lr lines
+
+@nm {
+  color: mediumvioletred;
+}
+
+@str {
+  color: blue;
+}
+
+@lr {
+  border: 1.1 2 indigo;
+  fill: lavender;
+  padding: 2;
+}
+
+@rl {
+  border: 1.1 2 orange;
+  fill: papayawhip;
+  padding: 2;
+}`
 };
