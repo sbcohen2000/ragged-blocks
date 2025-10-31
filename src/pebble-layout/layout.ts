@@ -453,11 +453,7 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
           continue;
         }
 
-        out.push({
-          rect: stk.rect,
-          lineNo,
-          text: stk.text,
-        });
+        out.push({ ...stk, type: "Atom", lineNo });
       }
     }
 

@@ -63,8 +63,8 @@ function extentsOverlap(a: Extent, b: Extent): boolean {
  * below it.
  */
 type WithFragmentRanges<A = {}> = {
-  Atom:    { index: number, line: number };
-  Spacer:  { index: number, line: number };
+  Atom:    { index: number, lineNo: number };
+  Spacer:  { index: number, lineNo: number };
   Newline: object;
   Node:    { fragmentRange: Range, lineRange: Range, uid: number };
 } & A;
@@ -92,7 +92,7 @@ type Fragment = {
   /**
    * The line number of the fragment.
    */
-  line: number;
+  lineNo: number;
 };
 
 /**
@@ -139,7 +139,7 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
   /**
    * The current line number.
    */
-  let line = 0;
+  let lineNo = 0;
 
   const fragmentVector: FragmentVector = [];
 
@@ -191,7 +191,7 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
           begin: fragmentVector.length,
           end: fragmentVector.length // Note the +1 due to the below Spacer.
         });
-        line++;
+        lineNo++;
         return root;
       }
       case "Atom": {
@@ -200,9 +200,9 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
           gadgetsBefore: [],
           content: { type: "Atom", rect: clone(root.rect) },
           gadgetsAfter: [],
-          line,
+          lineNo,
         });
-        return { ...root, index, line };
+        return { ...root, index, lineNo };
       }
       case "Spacer": {
         const index = fragmentVector.length;
@@ -210,18 +210,18 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
           gadgetsBefore: [],
           content: { type: "Spacer", width: root.width },
           gadgetsAfter: [],
-          line,
+          lineNo,
         });
-        return { ...root, index, line };
+        return { ...root, index, lineNo };
       }
       case "Node": {
         const uid = nextUid();
-        const beginLine = line;
+        const beginLine = lineNo;
         const beginIndex = fragmentVector.length;
 
         const children = root.children.map(go);
 
-        const endLine = line + 1; // (exclusive)
+        const endLine = lineNo + 1; // (exclusive)
         const endIndex = fragmentVector.length;
 
         // Insert newline-induced H-Gadgets
@@ -237,7 +237,7 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
           const nextFragment = fragmentVector[i + 1];
 
           let isLastFragmentOnLine = nextFragment === undefined
-            || thisFragment.line !== nextFragment.line;
+            || thisFragment.lineNo !== nextFragment.lineNo;
 
           if(insertAtBeginning !== null
             && (thisFragment.content.type === "Atom" || isLastFragmentOnLine)) {
@@ -903,11 +903,7 @@ class SBlocksLayoutResult extends Render implements FragmentsInfo {
   fragmentsInfo(): FragmentInfo[] {
     let out: FragmentInfo[] = [];
     for(const atom of eachAtomWithInheritedStyles(this.layoutTree)) {
-      out.push({
-        rect: atom.rect,
-        lineNo: atom.line,
-        text: atom.text
-      });
+      out.push({ ...atom });
     }
     return out;
   }

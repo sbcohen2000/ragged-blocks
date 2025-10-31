@@ -72,6 +72,7 @@ export interface Layout {
  * Information about a positioned fragment.
  */
 export type FragmentInfo = {
+  type: "Atom";
   text: string;
   rect: Rect;
   lineNo: number;

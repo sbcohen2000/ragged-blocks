@@ -88,11 +88,7 @@ class BlocksLayoutResult extends Render implements FragmentsInfo {
           go(root.rhs);
         } break;
         case "Atom": {
-          out.push({
-            text: root.text,
-            rect: root.rect,
-            lineNo
-          });
+          out.push({ ...root, lineNo });
         } break;
         case "Spacer": break;
         case "Wrap": {

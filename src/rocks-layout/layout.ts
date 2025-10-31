@@ -225,11 +225,7 @@ class UnsimplifiedRocksLayoutResult extends Render implements FragmentsInfo {
         case "Atom": {
           const rect = this.backing.getByIndex(root.stackRef.index);
           assert(typeof rect !== "number", "Found Spacer where Atom is expected");
-          out.push({
-            rect,
-            lineNo,
-            text: root.text
-          });
+          out.push({ ...root, rect, lineNo });
         } break;
         case "Spacer": break;
         case "JoinV": {
