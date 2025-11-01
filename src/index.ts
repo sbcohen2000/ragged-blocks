@@ -47,20 +47,20 @@ export function asAlgorithmName(str: string): AlgorithmName | undefined {
   }
 }
 
-export type Algorithm = PebbleLayout | RocksLayout | RocksLayoutWithPins | OutlinedRocksLayout | OutlinedRocksLayoutWithPins | BlocksLayout | SBlocksLayout;
+export type Algorithm<D> = PebbleLayout<D> | RocksLayout<D> | RocksLayoutWithPins<D> | OutlinedRocksLayout<D> | OutlinedRocksLayoutWithPins<D> | BlocksLayout<D> | SBlocksLayout<D>;
 
 /**
  * For a given `AlgorithmName`, get the type of the class which
  * implements the given layout algorithm.
  */
-export type AlgorithmOfName<A extends AlgorithmName> =
-    A extends "L1P"      ? PebbleLayout
-  : A extends "L1S"      ? RocksLayout
-  : A extends "L1S+"     ? OutlinedRocksLayout
-  : A extends "L2AS"     ? RocksLayoutWithPins
-  : A extends "L2AS+"    ? OutlinedRocksLayoutWithPins
-  : A extends "Blocks"   ? BlocksLayout
-  : A extends "S-Blocks" ? SBlocksLayout
+export type AlgorithmOfName<A extends AlgorithmName, D> =
+    A extends "L1P"      ? PebbleLayout<D>
+  : A extends "L1S"      ? RocksLayout<D>
+  : A extends "L1S+"     ? OutlinedRocksLayout<D>
+  : A extends "L2AS"     ? RocksLayoutWithPins<D>
+  : A extends "L2AS+"    ? OutlinedRocksLayoutWithPins<D>
+  : A extends "Blocks"   ? BlocksLayout<D>
+  : A extends "S-Blocks" ? SBlocksLayout<D>
   : never;
 
 /**
@@ -75,7 +75,7 @@ export type Settings<A extends AlgorithmName> =
   : A extends "S-Blocks" ? SBlocksLayoutSettings
   : never;
 
-export function constructAlgoByName<A extends AlgorithmName>(name: A, settings: Settings<A>): Algorithm {
+export function constructAlgoByName<A extends AlgorithmName, D>(name: A, settings: Settings<A>): Algorithm<D> {
   switch(name) {
     case "L1P": return new PebbleLayout(settings as Settings<"L1P">);
     case "L1S": return new RocksLayout(settings as Settings<"L1S">);

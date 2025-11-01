@@ -12,7 +12,7 @@ import {
 import Tooltip from "./tooltip-component";
 
 interface LayoutViewProps<A extends rb.AlgorithmName> {
-  layoutTree: rb.LayoutTree;
+  layoutTree: rb.LayoutTree<void>;
   algoName: A;
   measure: (text: string) => rb.Rect;
   useWebWorkers?: boolean;

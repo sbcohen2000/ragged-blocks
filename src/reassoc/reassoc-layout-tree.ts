@@ -33,9 +33,9 @@ function opPrecedence(op: Op) {
 /**
  * Tokens are either already-processed tree fragments or operators.
  */
-type Token<A extends alt.Ann> = {
+type Token<D, A extends alt.Ann> = {
   type: "E";
-  layoutTree: rlt.LayoutTree<rlt.WithAtomAndSpacerOf<A>>;
+  layoutTree: rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>>;
 } | {
   type: "Op";
   op: Op;
@@ -49,8 +49,12 @@ type Token<A extends alt.Ann> = {
  * is at the end of the list (i.e. the input should be reversed).
  * @returns The parsed layout tree.
  */
-function parse<A extends alt.Ann>(tokens: Token<A>[]): rlt.LayoutTree<rlt.WithAtomAndSpacerOf<A>> {
-  const go = (op1: Op, e1: rlt.LayoutTree<rlt.WithAtomAndSpacerOf<A>>, rest: Token<A>[]): rlt.LayoutTree<rlt.WithAtomAndSpacerOf<A>> => {
+function parse<D, A extends alt.Ann>(tokens: Token<D, A>[]): rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>> {
+  const go = (
+    op1: Op,
+    e1: rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>>,
+    rest: Token<D, A>[]
+  ): rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>> => {
     if(rest.length === 0) {
       return e1;
     }
@@ -73,7 +77,7 @@ function parse<A extends alt.Ann>(tokens: Token<A>[]): rlt.LayoutTree<rlt.WithAt
     } else {
       const rhs = go(op2.op, e2.layoutTree, rest);
 
-      const e: rlt.LayoutTree<rlt.WithAtomAndSpacerOf<A>> = (() => {;
+      const e: rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>> = (() => {;
         switch(op2.op) {
           case "NextTo":  return { type: "JoinH", lhs: e1, rhs };
           case "Newline": return { type: "JoinV", lhs: e1, rhs };
@@ -106,10 +110,10 @@ function parse<A extends alt.Ann>(tokens: Token<A>[]): rlt.LayoutTree<rlt.WithAt
  * @param empty An empty layout tree.
  * @returns The specialized rocks layout tree.
  */
-export default function reassocLayoutTree<A extends alt.Ann>(
-  lt: alt.LayoutTree<A>,
-  empty: rlt.LayoutTree<rlt.WithAtomAndSpacerOf<A>>
-): rlt.LayoutTree<rlt.WithAtomAndSpacerOf<A>> {
+export default function reassocLayoutTree<D, A extends alt.Ann>(
+  lt: alt.LayoutTree<D, A>,
+  empty: rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>>
+): rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>> {
   switch(lt.type) {
   // The following two cases only occur at the top of the call tree
   // (i.e. not as a result of a recursive call).
@@ -117,7 +121,7 @@ export default function reassocLayoutTree<A extends alt.Ann>(
     case "Spacer": return { ...lt };
     case "Newline": assert(false);
     case "Node": {
-      const tokens: Token<A>[] = [];
+      const tokens: Token<D, A>[] = [];
 
       const putEmpty = () => {
         tokens.push({ type: "E", layoutTree: { ...empty } });
@@ -156,7 +160,7 @@ export default function reassocLayoutTree<A extends alt.Ann>(
        * that every expression is separated by a `NextTo` or
        * `Newline` operator.
        */
-      const putLayoutTree = (layoutTree: rlt.LayoutTree<rlt.WithAtomAndSpacerOf<A>>) => {
+      const putLayoutTree = (layoutTree: rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>>) => {
         if(tokens.length === 0) {
           tokens.push({ type: "E", layoutTree });
         } else {
@@ -188,7 +192,7 @@ export default function reassocLayoutTree<A extends alt.Ann>(
           } break;
           case "Atom":
           case "Spacer": {
-            const layoutTree: rlt.LayoutTree<rlt.WithAtomAndSpacerOf<A>> = { ...child };
+            const layoutTree: rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>> = { ...child };
             putLayoutTree(layoutTree);
           } break;
           case "Node": {
@@ -205,7 +209,7 @@ export default function reassocLayoutTree<A extends alt.Ann>(
       }
 
       tokens.reverse();
-      const out: rlt.LayoutTree = {
+      const out: rlt.LayoutTree<D> = {
         type: "Wrap",
         child: tokens.length > 0 ? parse(tokens) : { ...empty },
         padding: lt.padding,

@@ -73,7 +73,7 @@ export default function Root() {
     };
   }, [fontLoadStatus]);
 
-  const [layoutTree, setLayoutTree] = react.useState<rb.LayoutTree>(
+  const [layoutTree, setLayoutTree] = react.useState<rb.LayoutTree<void>>(
     // Initialize the layout tree with an empty node.
     { type: "Node", children: [], padding: 0 },
   );

@@ -5,19 +5,23 @@ export function rect(w: number, h: number) {
   return { left: 0, right: w, top: 0, bottom: h };
 }
 
-export function atom(w: number, h: number): LayoutTree<WithMeasurements> {
+export function atom(w: number, h: number): LayoutTree<void, WithMeasurements> {
   return { type: "Atom", rect: rect(w, h), text: "" };
 }
 
-export function spacer(w: number): LayoutTree<WithMeasurements> {
+export function spacer(w: number): LayoutTree<void, WithMeasurements> {
   return { type: "Spacer", width: w, text: "" };
 }
 
-export function newline(): LayoutTree<WithMeasurements> {
+export function newline(): LayoutTree<void, WithMeasurements> {
   return { type: "Newline" };
 }
 
-export function node(children: LayoutTree<WithMeasurements>[], padding?: number, fill?: string): LayoutTree<WithMeasurements> {
+export function node(
+  children: LayoutTree<void, WithMeasurements>[],
+  padding?: number,
+  fill?: string
+): LayoutTree<void, WithMeasurements> {
   padding = padding ?? 10;
   return { type: "Node", children, padding, sty: { fill: fill ?? "gray" } };
 }

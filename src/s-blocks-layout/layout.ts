@@ -109,8 +109,8 @@ function hasHGadgetWithUID(uid: number, gadgets: HGadget[]): boolean {
 
 type FragmentVector = Fragment[];
 
-type LayoutGuts<A extends Ann> = {
-  layoutTree: LayoutTree<A>,
+type LayoutGuts<D, A extends Ann> = {
+  layoutTree: LayoutTree<D, A>,
   fragmentVector: FragmentVector,
   lineToFragmentRange: Range[],
 };
@@ -125,7 +125,7 @@ type LayoutGuts<A extends Ann> = {
  * has been annotated with H-Gadgets, and a mapping from line numbers
  * to fragment ranges.
  */
-function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGuts<WithMeasurements<WithFragmentRanges>> {
+function buildFragmentVector<D>(layoutTree: LayoutTree<D, WithMeasurements>): LayoutGuts<D, WithMeasurements<WithFragmentRanges>> {
   /**
    * Produce a unique ID.
    */
@@ -183,7 +183,7 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
     }
   };
 
-  const go = (root: LayoutTree<WithMeasurements>): LayoutTree<WithMeasurements<WithFragmentRanges>> => {
+  const go = (root: LayoutTree<D, WithMeasurements>): LayoutTree<D, WithMeasurements<WithFragmentRanges>> => {
     switch(root.type) {
       case "Newline": {
         lineToFragmentRange[lineToFragmentRange.length - 1].end = fragmentVector.length;
@@ -379,7 +379,7 @@ type Leading = {
  * @param guts The layout guts.
  * @returns An iterator to the objects on `line`.
  */
-function* eachObjectOnLine(line: number, guts: LayoutGuts<WithFragmentRanges>): IterableIterator<FragmentContent | HGadget> {
+function* eachObjectOnLine<D>(line: number, guts: LayoutGuts<D, WithFragmentRanges>): IterableIterator<FragmentContent | HGadget> {
   const range = guts.lineToFragmentRange[line];
   for(let i = range.begin; i < range.end; ++i) {
     const fragment = guts.fragmentVector[i];
@@ -411,7 +411,7 @@ function* eachObjectOnLine(line: number, guts: LayoutGuts<WithFragmentRanges>): 
  * @returns A `Range` object describing the S-Block's horizontal
  * extent on `line`, or `null` if the S-Block isn't on `line`.
  */
-function extentOnLine(line: number, uid: number, guts: LayoutGuts<WithFragmentRanges>): Extent | null {
+function extentOnLine<D>(line: number, uid: number, guts: LayoutGuts<D, WithFragmentRanges>): Extent | null {
   type State = { state: "LookingForBegin" } | { state: "FoundBegin"; extent: Extent };
   let state: State = { state: "LookingForBegin" };
   let x = 0;
@@ -471,7 +471,12 @@ function extentOnLine(line: number, uid: number, guts: LayoutGuts<WithFragmentRa
  * extent on that line. Returns `null` if the S-Block couldn't be
  * found anywhere between `minLine` and `maxLine`.
  */
-function extentBetweenLines(minLine: number, maxLine: number, uid: number, guts: LayoutGuts<WithFragmentRanges>): [number, Extent, number, Extent] | null {
+function extentBetweenLines<D>(
+  minLine: number,
+  maxLine: number,
+  uid: number,
+  guts: LayoutGuts<D, WithFragmentRanges>
+): [number, Extent, number, Extent] | null {
   while(minLine <= maxLine) {
     const upperExtent = extentOnLine(minLine, uid, guts);
     const lowerExtent = extentOnLine(maxLine, uid, guts);
@@ -506,7 +511,14 @@ function extentBetweenLines(minLine: number, maxLine: number, uid: number, guts:
  * @returns A DrawCommand that can be resolved to a line once we know
  * the absolute height of each line and leading.
  */
-function addVGadget(padding: number, lineNo: number, extent: Extent, side: "Above" | "Below", reversed: boolean, leading: Leading): DrawCommand {
+function addVGadget(
+  padding: number,
+  lineNo: number,
+  extent: Extent,
+  side: "Above" | "Below",
+  reversed: boolean,
+  leading: Leading
+): DrawCommand {
   if(extent[0] === extent[1]) {
     return nopCommand();
   }
@@ -549,7 +561,7 @@ function addVGadget(padding: number, lineNo: number, extent: Extent, side: "Abov
   }
 }
 
-type LayoutGutsWithLeading<A extends Ann> = LayoutGuts<A> & { leading: Leading };
+type LayoutGutsWithLeading<D, A extends Ann> = LayoutGuts<D, A> & { leading: Leading };
 
 /**
  * Resolve the absolute width and horizontal position of each object
@@ -562,7 +574,9 @@ type LayoutGutsWithLeading<A extends Ann> = LayoutGuts<A> & { leading: Leading }
  * @returns A new `LayoutGuts`, additionally annotated with
  * `DrawCommands`.
  */
-function resolveWidths<A>(layoutGuts: LayoutGuts<WithFragmentRanges<A>>): LayoutGutsWithLeading<WithFragmentRanges<WithDrawCommands<A>>> {
+function resolveWidths<D, A>(
+  layoutGuts: LayoutGuts<D, WithFragmentRanges<A>>
+): LayoutGutsWithLeading<D, WithFragmentRanges<WithDrawCommands<A>>> {
   /**
    * An array, one element per line. Each line has two interval trees;
    * a tree for the VGadgets above the line, and a tree for the
@@ -576,7 +590,7 @@ function resolveWidths<A>(layoutGuts: LayoutGuts<WithFragmentRanges<A>>): Layout
           belowLine: new IntervalTree()
         }));
 
-  const go = (root: LayoutTree<WithFragmentRanges<A>>): LayoutTree<WithFragmentRanges<WithDrawCommands<A>>> => {
+  const go = (root: LayoutTree<D, WithFragmentRanges<A>>): LayoutTree<D, WithFragmentRanges<WithDrawCommands<A>>> => {
     switch(root.type) {
       case "Newline": return root;
       case "Atom": return root;
@@ -750,7 +764,10 @@ type LineMetrics = {
   yBottom: number;
 };
 
-function resolveHeights(layoutGuts: LayoutGutsWithLeading<WithMeasurements<WithFragmentRanges<WithDrawCommands>>>, idealLeading: number): LayoutTree<WithMeasurements<WithFragmentRanges<WithOutlines>>> {
+function resolveHeights<D>(
+  layoutGuts: LayoutGutsWithLeading<D, WithMeasurements<WithFragmentRanges<WithDrawCommands>>>,
+  idealLeading: number
+): LayoutTree<D, WithMeasurements<WithFragmentRanges<WithOutlines>>> {
   let y = 0;
   /**
    * An array holding the `LineMetrics` of each line. There is one
@@ -833,7 +850,7 @@ function resolveHeights(layoutGuts: LayoutGutsWithLeading<WithMeasurements<WithF
   // to position each fragment and attach outlines to each `Node`.
 
   y = 0;
-  const go = (root: LayoutTree<WithMeasurements<WithFragmentRanges<WithDrawCommands>>>): LayoutTree<WithMeasurements<WithFragmentRanges<WithOutlines>>> => {
+  const go = (root: LayoutTree<D, WithMeasurements<WithFragmentRanges<WithDrawCommands>>>): LayoutTree<D, WithMeasurements<WithFragmentRanges<WithOutlines>>> => {
     switch(root.type) {
       case "Newline": return root;
       case "Atom": {
@@ -860,16 +877,16 @@ function resolveHeights(layoutGuts: LayoutGutsWithLeading<WithMeasurements<WithF
   return go(layoutGuts.layoutTree);
 }
 
-class SBlocksLayoutResult extends Render implements FragmentsInfo {
-  private layoutTree: LayoutTree<WithMeasurements<WithFragmentRanges<WithOutlines>>>;
+class SBlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
+  private layoutTree: LayoutTree<D, WithMeasurements<WithFragmentRanges<WithOutlines>>>;
 
-  constructor(layoutTree: LayoutTree<WithMeasurements<WithFragmentRanges<WithOutlines>>>) {
+  constructor(layoutTree: LayoutTree<D, WithMeasurements<WithFragmentRanges<WithOutlines>>>) {
     super();
     this.layoutTree = layoutTree;
   }
 
   render(svg: Svg, sty: SVGStyle): void {
-    const go = (root: LayoutTree<WithMeasurements<WithOutlines>>) => {
+    const go = (root: LayoutTree<D, WithMeasurements<WithOutlines>>) => {
       switch(root.type) {
         case "Newline":
         case "Atom":
@@ -900,8 +917,8 @@ class SBlocksLayoutResult extends Render implements FragmentsInfo {
     }
   }
 
-  fragmentsInfo(): FragmentInfo[] {
-    let out: FragmentInfo[] = [];
+  fragmentsInfo(): FragmentInfo<D>[] {
+    let out: FragmentInfo<D>[] = [];
     for(const atom of eachAtomWithInheritedStyles(this.layoutTree)) {
       out.push({ ...atom });
     }
@@ -925,14 +942,14 @@ export class SBlocksLayoutSettings implements ViewSettings {
   }
 }
 
-export default class SBlocksLayout implements Layout {
+export default class SBlocksLayout<D> implements Layout<D> {
   private settings: SBlocksLayoutSettings;
 
   constructor(settings: SBlocksLayoutSettings) {
     this.settings = settings;
   }
 
-  async layout(layoutTree: LayoutTree<WithMeasurements>): Promise<SBlocksLayoutResult> {
+  async layout(layoutTree: LayoutTree<D, WithMeasurements>): Promise<SBlocksLayoutResult<D>> {
     const guts = buildFragmentVector(layoutTree);
     const gutsWLeading = resolveWidths(guts);
     const withOutlines = resolveHeights(gutsWLeading, this.settings.idealLeading);

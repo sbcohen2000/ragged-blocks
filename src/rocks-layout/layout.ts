@@ -143,12 +143,12 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
  * `LayoutTree<WithRegions>` which has the same structure as the input
  * tree, but is annotated with the region of each `Node`.
  */
-class UnsimplifiedRocksLayoutResult extends Render implements FragmentsInfo {
+class UnsimplifiedRocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
   backing: Backing;
   timetable: Timetable;
-  layoutTree: LayoutTree<WithRegions>;
+  layoutTree: LayoutTree<D, WithRegions>;
 
-  constructor(backing: Backing, timetable: Timetable, layoutTree: LayoutTree<WithRegions>) {
+  constructor(backing: Backing, timetable: Timetable, layoutTree: LayoutTree<D, WithRegions>) {
     super();
     this.backing = backing;
     this.timetable = timetable;
@@ -156,7 +156,7 @@ class UnsimplifiedRocksLayoutResult extends Render implements FragmentsInfo {
   }
 
   render(svg: Svg, _sty: SVGStyle): void {
-    const go = (root: LayoutTree<WithRegions>) => {
+    const go = (root: LayoutTree<D, WithRegions>) => {
       switch(root.type) {
         case "Atom":
         case "Spacer": break; // Nothing to do.
@@ -217,10 +217,10 @@ class UnsimplifiedRocksLayoutResult extends Render implements FragmentsInfo {
     return bbox;
   }
 
-  fragmentsInfo(): FragmentInfo[] {
-    let out: FragmentInfo[] = [];
+  fragmentsInfo(): FragmentInfo<D>[] {
+    let out: FragmentInfo<D>[] = [];
     let lineNo = 0;
-    const go = (root: LayoutTree<WithRegions>) => {
+    const go = (root: LayoutTree<D, WithRegions>) => {
       switch(root.type) {
         case "Atom": {
           const rect = this.backing.getByIndex(root.stackRef.index);
@@ -368,7 +368,7 @@ export class RocksLayoutSettings implements ViewSettings {
   }
 }
 
-export class RocksLayout implements alt.Layout {
+export class RocksLayout<D> implements alt.Layout<D> {
   private settings: RocksLayoutSettings;
 
   constructor(settings: RocksLayoutSettings) {
@@ -408,13 +408,13 @@ export class RocksLayout implements alt.Layout {
     a.push(...b);
   }
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
+  async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
     const backing = new Backing();
-    const empty: LayoutTree<WithMeasurements> = { type: "Spacer", width: 0, text: "" };
-    const rlt: LayoutTree<WithMeasurements> = reassocLayoutTree(layoutTree, empty);
+    const empty: LayoutTree<D, WithMeasurements> = { type: "Spacer", width: 0, text: "" };
+    const rlt: LayoutTree<D, WithMeasurements> = reassocLayoutTree(layoutTree, empty);
     const [timetable, ltWithRegions] = Timetable.fromLayoutTree(rlt);
 
-    const go = (root: LayoutTree<WithRegions<WithMeasurements>>): L1s => {
+    const go = (root: LayoutTree<D, WithRegions<WithMeasurements>>): L1s => {
       switch(root.type) {
         case "Atom": {
           const maxPadding = timetable.getMaxPadding(root.stackRef.index);
@@ -475,7 +475,7 @@ export class RocksLayout implements alt.Layout {
 type L2ASFragment<A = {}> = { pinId: string | undefined, idx: number } & A;
 type L2AS<A = {}> = L2ASFragment<A>[][];
 
-export class RocksLayoutWithPins implements alt.Layout {
+export class RocksLayoutWithPins<D> implements alt.Layout<D> {
   private settings: RocksLayoutSettings;
 
   constructor(settings: RocksLayoutSettings) {
@@ -527,17 +527,17 @@ export class RocksLayoutWithPins implements alt.Layout {
     return aWidth + aSpc + bSpc;
   }
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
+  async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
     const backing = new Backing();
-    const empty: LayoutTree<WithMeasurements> = { type: "Spacer", width: 0, text: "" };
-    const rlt: LayoutTree<WithMeasurements> = reassocLayoutTree(layoutTree, empty);
+    const empty: LayoutTree<D, WithMeasurements> = { type: "Spacer", width: 0, text: "" };
+    const rlt: LayoutTree<D, WithMeasurements> = reassocLayoutTree(layoutTree, empty);
     const [timetable, ltWithRegions] = Timetable.fromLayoutTree(rlt);
 
     // Collect a set of all of the PinIds in the layout tree,
     // including an implicit pin for the left margin.
     const allPinIds: Set<string> = new Set(["^"]);
 
-    const go = (root: LayoutTree<WithRegions<WithMeasurements>>): L2AS => {
+    const go = (root: LayoutTree<D, WithRegions<WithMeasurements>>): L2AS => {
       switch(root.type) {
         case "Atom": {
           const maxPadding = timetable.getMaxPadding(root.stackRef.index);
@@ -702,7 +702,7 @@ export class RocksLayoutWithPins implements alt.Layout {
  * @returns A `Polygon`, or `null` if the given `layoutTree` doesn't
  * have any Nodes.
  */
-export function outlineOfLayoutTree(layoutTree: LayoutTree<WithOutlines>): Polygon | null {
+export function outlineOfLayoutTree<D>(layoutTree: LayoutTree<D, WithOutlines>): Polygon | null {
   switch(layoutTree.type) {
     case "JoinH":
     case "JoinV": {
@@ -714,18 +714,18 @@ export function outlineOfLayoutTree(layoutTree: LayoutTree<WithOutlines>): Polyg
   }
 }
 
-class OutlinedRocksLayoutResult extends Render implements FragmentsInfo {
-  private layoutTree: LayoutTree<WithRegions<WithOutlines>>;
-  private unsimplifiedResult: UnsimplifiedRocksLayoutResult;
+class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
+  private layoutTree: LayoutTree<D, WithRegions<WithOutlines>>;
+  private unsimplifiedResult: UnsimplifiedRocksLayoutResult<D>;
 
-  constructor(layoutTree: LayoutTree<WithRegions<WithOutlines>>, unsimplifiedResult: UnsimplifiedRocksLayoutResult) {
+  constructor(layoutTree: LayoutTree<D, WithRegions<WithOutlines>>, unsimplifiedResult: UnsimplifiedRocksLayoutResult<D>) {
     super();
     this.layoutTree = layoutTree;
     this.unsimplifiedResult = unsimplifiedResult;
   }
 
   render(svg: Svg, sty: SVGStyle) {
-    const go = (root: LayoutTree<WithRegions<WithOutlines>>) => {
+    const go = (root: LayoutTree<D, WithRegions<WithOutlines>>) => {
       switch(root.type) {
         case "Atom":
         case "Spacer": break;
@@ -757,7 +757,7 @@ class OutlinedRocksLayoutResult extends Render implements FragmentsInfo {
     return new PolygonRendering(outermostOutline).boundingBox();
   }
 
-  fragmentsInfo(): FragmentInfo[] {
+  fragmentsInfo(): FragmentInfo<D>[] {
     return this.unsimplifiedResult.fragmentsInfo();
   }
 }
@@ -791,19 +791,19 @@ export class OutlinedRocksLayoutSettings implements ViewSettings {
  * rectilinear polygons which outline each rock, and optionally
  * simplifies them.
  */
-export class OutlinedRocksLayout implements alt.Layout {
+export class OutlinedRocksLayout<D> implements alt.Layout<D> {
   protected settings: OutlinedRocksLayoutSettings;
 
   constructor(settings: OutlinedRocksLayoutSettings) {
     this.settings = settings;
   }
 
-  protected layoutUnsimplified(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
-    const algo = new RocksLayout(this.settings);
+  protected layoutUnsimplified(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
+    const algo = new RocksLayout<D>(this.settings);
     return algo.layout(layoutTree);
   }
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<OutlinedRocksLayoutResult> {
+  async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<OutlinedRocksLayoutResult<D>> {
     const unsimplified = await this.layoutUnsimplified(layoutTree);
     const outerBBox = unsimplified.boundingBox();
     const outerOutline: Polygon = outerBBox ? [pathOfRect(outerBBox)] : [];
@@ -832,7 +832,7 @@ export class OutlinedRocksLayout implements alt.Layout {
     };
     */
 
-    const go = (root: LayoutTree<WithRegions>, outline: Polygon): LayoutTree<WithRegions<WithOutlines>> => {
+    const go = (root: LayoutTree<D, WithRegions>, outline: Polygon): LayoutTree<D, WithRegions<WithOutlines>> => {
       switch(root.type) {
         case "JoinH":
         case "JoinV": {
@@ -895,13 +895,13 @@ export class OutlinedRocksLayout implements alt.Layout {
   }
 }
 
-export class OutlinedRocksLayoutWithPins extends OutlinedRocksLayout {
+export class OutlinedRocksLayoutWithPins<D> extends OutlinedRocksLayout<D> {
   constructor(settings: OutlinedRocksLayoutSettings) {
     super(settings);
   }
 
-  override layoutUnsimplified(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
-    const algo = new RocksLayoutWithPins(this.settings);
+  override layoutUnsimplified(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
+    const algo = new RocksLayoutWithPins<D>(this.settings);
     return algo.layout(layoutTree);
   }
 }

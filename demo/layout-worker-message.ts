@@ -7,7 +7,7 @@ export type RenderSettings = {
 
 export type WorkerMsg<A extends rb.AlgorithmName> = {
   type: "begin";
-  layoutTree: rb.LayoutTree<rb.WithMeasurements>;
+  layoutTree: rb.LayoutTree<void, rb.WithMeasurements>;
   algoName: A;
   algoSettings: rb.Settings<A>;
   renderSettings: RenderSettings;

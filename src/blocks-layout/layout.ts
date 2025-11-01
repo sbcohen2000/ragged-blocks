@@ -24,7 +24,7 @@ export type WithRelativeOffsets<A = {}> = {
  * @returns The outermost rectangle, or `null` if the tree doesn't
  * contain any rectangles.
  */
-function outermostRect(layoutTree: rlt.LayoutTree<rlt.WithPositions>): Rect | null {
+function outermostRect<D>(layoutTree: rlt.LayoutTree<D, rlt.WithPositions>): Rect | null {
   switch(layoutTree.type) {
     case "JoinH":
     case "JoinV": return outermostRect(layoutTree.lhs) || outermostRect(layoutTree.rhs);
@@ -34,16 +34,16 @@ function outermostRect(layoutTree: rlt.LayoutTree<rlt.WithPositions>): Rect | nu
   }
 }
 
-class BlocksLayoutResult extends Render implements FragmentsInfo {
-  private layoutTree: rlt.LayoutTree<rlt.WithPositions>;
+class BlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
+  private layoutTree: rlt.LayoutTree<D, rlt.WithPositions>;
 
-  constructor(layoutTree: rlt.LayoutTree<rlt.WithPositions>) {
+  constructor(layoutTree: rlt.LayoutTree<D, rlt.WithPositions>) {
     super();
     this.layoutTree = layoutTree;
   }
 
   render(svg: Svg, sty: SVGStyle): void {
-    const go = (root: rlt.LayoutTree<rlt.WithPositions>) => {
+    const go = (root: rlt.LayoutTree<D, rlt.WithPositions>) => {
       switch(root.type) {
         case "JoinH":
         case "JoinV": {
@@ -73,10 +73,10 @@ class BlocksLayoutResult extends Render implements FragmentsInfo {
     return outermostRect(this.layoutTree);
   }
 
-  fragmentsInfo(): FragmentInfo[] {
-    let out: FragmentInfo[] = [];
+  fragmentsInfo(): FragmentInfo<D>[] {
+    let out: FragmentInfo<D>[] = [];
     let lineNo = 0;
-    const go = (root: rlt.LayoutTree<rlt.WithPositions>) => {
+    const go = (root: rlt.LayoutTree<D, rlt.WithPositions>) => {
       switch(root.type) {
         case "JoinH": {
           go(root.lhs);
@@ -115,12 +115,12 @@ export class BlocksLayoutSettings implements ViewSettings {
   }
 }
 
-export default class BlocksLayout implements alt.Layout {
+export default class BlocksLayout<D> implements alt.Layout<D> {
   constructor(_settings: BlocksLayoutSettings) {}
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<BlocksLayoutResult> {
-    const empty: rlt.LayoutTree<rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
-    const rlt: rlt.LayoutTree<rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
+  async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<BlocksLayoutResult<D>> {
+    const empty: rlt.LayoutTree<D, rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
+    const rlt: rlt.LayoutTree<D, rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
 
     // Note: The blocks layout algorithm is implemented in two stages:
     // First, the layout tree is traversed to find the relative offset
@@ -138,7 +138,7 @@ export default class BlocksLayout implements alt.Layout {
      * Find the relative offset and size of each node in the layout
      * tree.
      */
-    const goRel = (root: rlt.LayoutTree<rlt.WithMeasurements>): [rlt.LayoutTree<WithRelativeOffsets>, Rect] => {
+    const goRel = (root: rlt.LayoutTree<D, rlt.WithMeasurements>): [rlt.LayoutTree<D, WithRelativeOffsets>, Rect] => {
       switch(root.type) {
         case "JoinH": {
           const [lhs, lhsRelRect] = goRel(root.lhs);
@@ -175,7 +175,7 @@ export default class BlocksLayout implements alt.Layout {
      * of each node, return a layout tree annotated with the final
      * position of each node in the tree.
      */
-    const goFinalize = (root: rlt.LayoutTree<WithRelativeOffsets>, ofs: Vector): rlt.LayoutTree<rlt.WithPositions> => {
+    const goFinalize = (root: rlt.LayoutTree<D, WithRelativeOffsets>, ofs: Vector): rlt.LayoutTree<D, rlt.WithPositions> => {
       switch(root.type) {
         case "JoinH":
         case "JoinV": {

@@ -156,8 +156,8 @@ export default function HelpText(props: HelpTextProps) {
     }
   })();
 
-  const exampleLayoutTree: rb.LayoutTree = react.useMemo(() => {
-    return parseExample(phaseText) as rb.LayoutTree;
+  const exampleLayoutTree: rb.LayoutTree<void> = react.useMemo(() => {
+    return parseExample(phaseText) as rb.LayoutTree<void>;
   }, [phaseText]);
 
   return (

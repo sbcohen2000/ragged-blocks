@@ -15,22 +15,23 @@ export interface Ann {
   Wrap: object;
 };
 
-export type JoinH<X extends Ann = Ann> = {
+export type JoinH<D, X extends Ann = Ann> = {
   type: "JoinH";
-  lhs: LayoutTree<X>;
-  rhs: LayoutTree<X>;
+  lhs: LayoutTree<D, X>;
+  rhs: LayoutTree<D, X>;
 } & X["JoinH"];
 
-export type JoinV<X extends Ann = Ann> = {
+export type JoinV<D, X extends Ann = Ann> = {
   type: "JoinV";
-  lhs: LayoutTree<X>;
-  rhs: LayoutTree<X>;
+  lhs: LayoutTree<D, X>;
+  rhs: LayoutTree<D, X>;
 } & X["JoinV"];
 
-export type Atom<X extends Ann = Ann> = {
+export type Atom<D, X extends Ann = Ann> = {
   type: "Atom";
   text: string;
   pinId?: string;
+  userData?: D;
 } & X["Atom"];
 
 export type Spacer<X extends Ann = Ann> = {
@@ -38,14 +39,14 @@ export type Spacer<X extends Ann = Ann> = {
   text: string;
 } & X["Spacer"];
 
-export type Wrap<X extends Ann = Ann> = {
+export type Wrap<D, X extends Ann = Ann> = {
   type: "Wrap";
-  child: LayoutTree<X>;
+  child: LayoutTree<D, X>;
   padding: number;
   sty?: Partial<SVGStyle>;
 } & X["Wrap"];
 
-export type LayoutTree<X extends Ann = Ann> = JoinH<X> | JoinV<X> | Atom<X> | Spacer<X> | Wrap<X>;
+export type LayoutTree<D, X extends Ann = Ann> = JoinH<D, X> | JoinV<D, X> | Atom<D, X> | Spacer<X> | Wrap<D, X>;
 
 /**
  * Produce an annotation type which copies the `Atom` and `Spacer`

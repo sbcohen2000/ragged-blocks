@@ -1,3 +1,3 @@
 import { LayoutTree, atom } from "../../layout-tree-utils";
 
-export const layoutTree: LayoutTree = atom(20, 20);
+export const layoutTree: LayoutTree<void> = atom(20, 20);

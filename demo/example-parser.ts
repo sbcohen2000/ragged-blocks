@@ -20,25 +20,25 @@ const pText: Parsimmon.Parser<string> =
         Parsimmon.noneOf("\n[]#@")
       ).atLeast(1).map(s => s.join(""));
 
-const pSpaceAtom: Parsimmon.Parser<LayoutTree> =
+const pSpaceAtom: Parsimmon.Parser<LayoutTree<void>> =
       Parsimmon.string(" ").atLeast(1).map(s => {
-        const atom: LayoutTree = { type: "Atom", text: s.join("") };
+        const atom: LayoutTree<void> = { type: "Atom", text: s.join("") };
         return atom;
       });
 
-const pAtom: Parsimmon.Parser<LayoutTree> =
+const pAtom: Parsimmon.Parser<LayoutTree<void>> =
       Parsimmon.seq(
         Parsimmon.regexp(/[a-zA-Z0-9]+#/).atMost(1),
         pText
       ).map(([maybePin, text]) => {
-        const atom: LayoutTree = { type: "Atom", text };
+        const atom: LayoutTree<void> = { type: "Atom", text };
         if(maybePin.length === 1) {
           atom.pinId = maybePin[0];
         }
         return atom;
       });
 
-const pNewline: Parsimmon.Parser<LayoutTree[]> =
+const pNewline: Parsimmon.Parser<LayoutTree<void>[]> =
       Parsimmon.seq(
         Parsimmon.lf,
         Parsimmon.regexp(/ */)
@@ -59,7 +59,7 @@ const pStyleReference: Parsimmon.Parser<string> =
         pName
       ).map(([_, nm]) => nm)
 
-const pNode: Parsimmon.Parser<LayoutTree<WithStyleRefs>> = Parsimmon.lazy(function () {
+const pNode: Parsimmon.Parser<LayoutTree<void, WithStyleRefs>> = Parsimmon.lazy(function () {
   return Parsimmon
     .seq(
       Parsimmon.string("["),
@@ -67,19 +67,19 @@ const pNode: Parsimmon.Parser<LayoutTree<WithStyleRefs>> = Parsimmon.lazy(functi
       Parsimmon.string("]"),
       pStyleReference.atMost(1)
     ).map(([_l, children, _r, styleRef]) => {
-      const node: Node<WithStyleRefs> = {
-        type: "Node",
-        children: children.flat(),
-        padding: 0,
-      };
-      if(styleRef.length === 1) {
-        node.styleRef = styleRef[0];
-      }
-      return node;
-    });
+    const node: Node<void, WithStyleRefs> = {
+      type: "Node",
+      children: children.flat(),
+      padding: 0,
+    };
+    if(styleRef.length === 1) {
+      node.styleRef = styleRef[0];
+    }
+    return node;
+  });
 });
 
-const pLayoutTree: Parsimmon.Parser<LayoutTree[]> = Parsimmon.lazy(function () {
+const pLayoutTree: Parsimmon.Parser<LayoutTree<void>[]> = Parsimmon.lazy(function () {
   return Parsimmon.alt(
     pNewline,
     pSpaceAtom.map((lt) => [lt]),
@@ -240,7 +240,7 @@ const pStyleDefn: Parsimmon.Parser<[string, Style]> =
       ).map(([_, nm, sty]) => [nm, sty]);
 
 type Example = {
-  layoutTrees: LayoutTree<WithStyleRefs>[];
+  layoutTrees: LayoutTree<void, WithStyleRefs>[];
   styleDefs: [string, Style][];
 };
 
@@ -261,7 +261,10 @@ const pExample: Parsimmon.Parser<Example> =
  * @param root The `LayoutTree` to modify.
  * @param sty The environment of style references.
  */
-function resolveStyleReferences(root: LayoutTree<WithStyleRefs>, sty: Map<string, Style>) {
+function resolveStyleReferences(
+  root: LayoutTree<void, WithStyleRefs>,
+  sty: Map<string, Style>
+) {
   switch(root.type) {
     case "Newline": break;
     case "Atom": break;
@@ -289,10 +292,10 @@ function resolveStyleReferences(root: LayoutTree<WithStyleRefs>, sty: Map<string
  * @returns A `LayoutTree` if the parse was successful, or a `string`
  * error message otherwise.
  */
-export default function parseExample(text: string): LayoutTree | string {
+export default function parseExample(text: string): LayoutTree<void> | string {
   const result = pExample.parse(text);
   if(result.status) {
-    const treeWithRefs: LayoutTree<WithStyleRefs> = {
+    const treeWithRefs: LayoutTree<void, WithStyleRefs> = {
       type: "Node",
       padding: 0,
       children: result.value.layoutTrees

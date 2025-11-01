@@ -1,7 +1,7 @@
 import { LayoutTree, WithMeasurements, atom, node } from "../../layout-tree-utils";
 
-export const layoutTree: LayoutTree<WithMeasurements> = (function () {
-  const nodes: LayoutTree<WithMeasurements>[] = [];
+export const layoutTree: LayoutTree<void, WithMeasurements> = (function () {
+  const nodes: LayoutTree<void, WithMeasurements>[] = [];
 
   for(let i = 0; i < 10; ++i) {
     nodes.push(node([atom(10, 10)]));

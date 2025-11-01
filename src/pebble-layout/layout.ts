@@ -361,7 +361,7 @@ function concatEvenly<A>(as: A[][]): A[] {
   }
 }
 
-class PebbleLayoutResult extends Render implements FragmentsInfo {
+class PebbleLayoutResult<D> extends Render implements FragmentsInfo<D> {
   private layout: L1p;
   private uidToColor: Map<number, string>;
 
@@ -444,8 +444,8 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
     return bbox;
   }
 
-  fragmentsInfo(): FragmentInfo[] {
-    let out: FragmentInfo[] = [];
+  fragmentsInfo(): FragmentInfo<D>[] {
+    let out: FragmentInfo<D>[] = [];
 
     for(let lineNo = 0; lineNo < this.layout.length; ++lineNo) {
       for(const stk of this.layout[lineNo].region) {
@@ -482,14 +482,14 @@ export class PebbleLayoutSettings implements ViewSettings {
   }
 }
 
-export default class PebbleLayout implements alt.Layout {
+export default class PebbleLayout<D> implements alt.Layout<D> {
   private settings: PebbleLayoutSettings;
 
   constructor(settings: PebbleLayoutSettings) {
     this.settings = settings;
   }
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<PebbleLayoutResult> {
+  async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<PebbleLayoutResult<D>> {
     /**
      * Produce a unique ID.
      */
@@ -500,11 +500,11 @@ export default class PebbleLayout implements alt.Layout {
       };
     })();
 
-    const empty: rlt.LayoutTree<rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
-    const rlt: rlt.LayoutTree<rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
+    const empty: rlt.LayoutTree<D, rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
+    const rlt: rlt.LayoutTree<D, rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
     const uidToColor: Map<number, string> = new Map();
 
-    const go = (root: rlt.LayoutTree<rlt.WithMeasurements>): L1p => {
+    const go = (root: rlt.LayoutTree<D, rlt.WithMeasurements>): L1p => {
       switch(root.type) {
         case "Atom": return layoutFromRect(root.rect, root.text);
         case "Spacer": return layoutFromSpacer(root.width);

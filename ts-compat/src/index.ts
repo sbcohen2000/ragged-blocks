@@ -42,7 +42,7 @@ const DEFAULT_PARSE_SETTINGS: ParseSettings = {
  * @param settings The parse settings.
  * @returns A new `LayoutTree`.
  */
-export function parse(src: string, language: any, settings: Partial<ParseSettings>): rb.LayoutTree<rb.WithText> {
+export function parse(src: string, language: any, settings: Partial<ParseSettings>): rb.LayoutTree<void> {
   const theSettings: ParseSettings = { ...DEFAULT_PARSE_SETTINGS, ...settings };
 
   const parser = new Parser();
@@ -57,7 +57,7 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
   let cursor = ast.walk();
   let lastPosition: Point = cursor.startPosition;
 
-  const emitWhitespace = (begin: Point, end: Point): rb.LayoutTree<rb.WithText>[] => {
+  const emitWhitespace = (begin: Point, end: Point): rb.LayoutTree<void>[] => {
     if(begin.row === end.row) {
       if(begin.column < end.column) {
         return [{ type: "Atom", text: nSpaces(end.column - begin.column, " ") }];
@@ -66,7 +66,7 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
       }
     } else {
       const nLines = end.row - begin.row;
-      let out: rb.LayoutTree<rb.WithText>[] = [];
+      let out: rb.LayoutTree<void>[] = [];
       for(let i = 0; i < nLines; ++i) {
         out.push({ type: "Newline" });
       }
@@ -77,7 +77,7 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
     }
   };
 
-  const pushLine = (text: string, out: rb.LayoutTree<rb.WithText>[]) => {
+  const pushLine = (text: string, out: rb.LayoutTree<void>[]) => {
     let i = 0;
     for(; i < text.length; ++i) {
       if(text[i] !== " ") {
@@ -101,8 +101,8 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
     }
   };
 
-  const pushMultilineText = (text: string): rb.LayoutTree<rb.WithText>[] => {
-    let out: rb.LayoutTree<rb.WithText>[] = [];
+  const pushMultilineText = (text: string): rb.LayoutTree<void>[] => {
+    let out: rb.LayoutTree<void>[] = [];
     const lines = text.split("\n");
     for(let i = 0; i < lines.length - 1; ++i) {
       pushLine(lines[i], out);
@@ -112,11 +112,11 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
     return out;
   }
 
-  const go = (): rb.LayoutTree<rb.WithText>[] => {
+  const go = (): rb.LayoutTree<void>[] => {
     const nodes = emitWhitespace(lastPosition, cursor.startPosition);
     lastPosition = cursor.startPosition;
 
-    let children: rb.LayoutTree<rb.WithText>[] = [];
+    let children: rb.LayoutTree<void>[] = [];
     if(cursor.gotoFirstChild()) {
       do {
         children.push(...go());
@@ -153,7 +153,7 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
  * Pretty print a layoutTree. This can be used to verify that the
  * parsing process doesn't loose any formatting information.
  */
-export function stringifyLayoutTree(layoutTree: rb.LayoutTree<rb.WithText>): string {
+export function stringifyLayoutTree(layoutTree: rb.LayoutTree<void>): string {
   switch(layoutTree.type) {
     case "Newline": return "\n";
     case "Atom": return layoutTree.text;

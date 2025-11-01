@@ -38,7 +38,7 @@ function wait(time: number): Promise<void> {
 }
 
 export default async function layout<A extends rb.AlgorithmName>(
-  layoutTree: rb.LayoutTree<rb.WithMeasurements>,
+  layoutTree: rb.LayoutTree<void, rb.WithMeasurements>,
   algoName: A,
   algoSettings: rb.Settings<A>,
   renderSettings: RenderSettings,
@@ -131,7 +131,7 @@ export default async function layout<A extends rb.AlgorithmName>(
         const text = new (class extends rb.Render {
           render(svg: rb.Svg, _sty: rb.SVGStyle) {
             for(const frag of layoutResult.fragmentsInfo()) {
-              const atom = atomsIter.next().value as rb.Atom<rb.WithMeasurements<rb.WithStyles>>;
+              const atom = atomsIter.next().value as rb.Atom<void, rb.WithMeasurements<rb.WithStyles>>;
               const text = svg.text(frag.text);
               text.fontFamily("Inconsolata-Medium");
               text.fontSize("12px");
