@@ -1,4 +1,5 @@
 export * from "./layout-tree";
+export * as rlt from "./reassoc/layout-tree";
 export * from "./rect";
 export * from "./render";
 export { MeshDistanceMesh } from "./mesh-distance";
@@ -12,6 +13,9 @@ export { OutlinedRocksLayoutSettings, RocksLayoutSettings } from "./rocks-layout
 export { PebbleLayoutSettings } from "./pebble-layout/layout";
 export { SBlocksLayoutSettings } from "./s-blocks-layout/layout";
 
+import * as alt from "./layout-tree";
+import * as rlt from "./reassoc/layout-tree";
+import { default as internalReassocLayoutTree } from "./reassoc/reassoc-layout-tree";
 import BlocksLayout, { BlocksLayoutSettings } from "./blocks-layout/layout";
 import PebbleLayout, { PebbleLayoutSettings } from "./pebble-layout/layout";
 import SBlocksLayout, { SBlocksLayoutSettings } from "./s-blocks-layout/layout";
@@ -89,4 +93,19 @@ export function constructAlgoByName<A extends AlgorithmName, D>(name: A, setting
 
 export interface AlgorithmConstructor<A extends AlgorithmName> {
   new (settings: Settings<A>): A;
+}
+
+/**
+ * Convert an abstract layout tree into a rocks layout tree. You
+ * probably don't need this function. It's only used to count the true
+ * number of wrap nodes in a layout tree for benchmarking purposes.
+ *
+ * @param lt The input layout tree.
+ * @returns The specialized rocks layout tree.
+ */
+export function reassocLayoutTree<D, A extends alt.Ann>(
+  lt: alt.LayoutTree<D, A>,
+): rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>> {
+  const empty: alt.LayoutTree<D, A> = { type: "Spacer", width: 0, text: "" };
+  return internalReassocLayoutTree(lt, empty);
 }

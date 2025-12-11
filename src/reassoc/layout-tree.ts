@@ -83,3 +83,16 @@ export type WithPositions<A = {}> = {
   Spacer:  { width: number };
   Wrap:    { rect: Rect };
 } & A;
+
+/**
+ * Count the number of `Wrap` nodes in a `LayoutTree`.
+ */
+export function countWraps<D>(root: LayoutTree<D>): number {
+  switch(root.type) {
+    case "Atom":
+    case "Spacer": return 0;
+    case "JoinH":
+    case "JoinV": return countWraps(root.lhs) + countWraps(root.rhs);
+    case "Wrap": return 1 + countWraps(root.child);
+  }
+}
