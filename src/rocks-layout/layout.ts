@@ -9,7 +9,7 @@ import { NumberSettingView, SettingView, ToggleSettingView, ViewSettings } from 
 import { Polygon, PolygonRendering } from "../polygon";
 import { Rect, horizontallyOverlap, inflate, width, height, union } from "../rect";
 import { Region, EMPTY, joinRegions, enumerateIndices, regionFromStackRef, singletonRegion } from "./region";
-import { Svg, Render, SVGStyle } from "../render";
+import { Svg, Render, SVGStyle, TraverseOutlines } from "../render";
 import { Timetable, WithRegions, regionOfLayoutTree } from "./timetable";
 import { add, Vector } from "../vector";
 import { addVector, Point, subPoints } from "../point";
@@ -714,7 +714,7 @@ export function outlineOfLayoutTree<D>(layoutTree: LayoutTree<D, WithOutlines>):
   }
 }
 
-class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
+class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, TraverseOutlines {
   private layoutTree: LayoutTree<D, WithRegions<WithOutlines>>;
   private unsimplifiedResult: UnsimplifiedRocksLayoutResult<D>;
 
@@ -759,6 +759,26 @@ class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
 
   fragmentsInfo(): FragmentInfo<D>[] {
     return this.unsimplifiedResult.fragmentsInfo();
+  }
+
+  *walk(): IterableIterator<{ outline: Polygon }> {
+    const q: LayoutTree<D, WithRegions<WithOutlines>>[] = [];
+    q.push(this.layoutTree);
+
+    while(q.length > 0) {
+      const top = q.shift()!;
+
+      switch(top.type) {
+        case "Atom":
+        case "Spacer": break;
+        case "JoinH":
+        case "JoinV": q.push(top.lhs); q.push(top.rhs); break;
+        case "Wrap": {
+          yield ({ outline: top.outline });
+          q.push(top.child);
+        } break;
+      }
+    }
   }
 }
 

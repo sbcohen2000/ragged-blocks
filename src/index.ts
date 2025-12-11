@@ -1,5 +1,6 @@
-export * from "./layout-tree";
+export * as polygon from "./polygon";
 export * as rlt from "./reassoc/layout-tree";
+export * from "./layout-tree";
 export * from "./rect";
 export * from "./render";
 export { MeshDistanceMesh } from "./mesh-distance";

@@ -1,4 +1,5 @@
 import { Rect, width, height, inflate, union } from "./rect";
+import { Polygon } from "./polygon";
 
 export type BorderStyle = {
   /**
@@ -97,6 +98,14 @@ export abstract class Render {
   withStyles(sty: Partial<SVGStyle>): Render {
     return new WithStyle(this, sty);
   }
+}
+
+export interface TraverseOutlines {
+  /**
+   * Return a breadth-first traversal of the tree, yielding the
+   * polygon associated with each node.
+   */
+  walk(): IterableIterator<{ outline: Polygon }>;
 }
 
 /**
