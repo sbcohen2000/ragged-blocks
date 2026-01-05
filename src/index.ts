@@ -54,46 +54,18 @@ export function asAlgorithmName(str: string): AlgorithmName | undefined {
 
 export type Algorithm<D> = PebbleLayout<D> | RocksLayout<D> | RocksLayoutWithPins<D> | OutlinedRocksLayout<D> | OutlinedRocksLayoutWithPins<D> | BlocksLayout<D> | SBlocksLayout<D>;
 
-/**
- * For a given `AlgorithmName`, get the type of the class which
- * implements the given layout algorithm.
- */
-export type AlgorithmOfName<A extends AlgorithmName, D> =
-    A extends "L1P"      ? PebbleLayout<D>
-  : A extends "L1S"      ? RocksLayout<D>
-  : A extends "L1S+"     ? OutlinedRocksLayout<D>
-  : A extends "L2AS"     ? RocksLayoutWithPins<D>
-  : A extends "L2AS+"    ? OutlinedRocksLayoutWithPins<D>
-  : A extends "Blocks"   ? BlocksLayout<D>
-  : A extends "S-Blocks" ? SBlocksLayout<D>
-  : never;
+export type AnySettings = PebbleLayoutSettings & RocksLayoutSettings & OutlinedRocksLayoutSettings & BlocksLayoutSettings & SBlocksLayoutSettings;
 
-/**
- * For a given `Algorithm`, return the type of its `Settings`.
- */
-export type Settings<A extends AlgorithmName> =
-    A extends "L1P"      ? PebbleLayoutSettings
-  : A extends "L1S"      ? RocksLayoutSettings
-  : A extends "L2AS"     ? RocksLayoutSettings
-  : A extends "L1S+"     ? OutlinedRocksLayoutSettings
-  : A extends "Blocks"   ? BlocksLayoutSettings
-  : A extends "S-Blocks" ? SBlocksLayoutSettings
-  : never;
-
-export function constructAlgoByName<A extends AlgorithmName, D>(name: A, settings: Settings<A>): Algorithm<D> {
+export function constructAlgoByName<A extends AlgorithmName, D>(name: A, settings: AnySettings): Algorithm<D> {
   switch(name) {
-    case "L1P": return new PebbleLayout(settings as Settings<"L1P">);
-    case "L1S": return new RocksLayout(settings as Settings<"L1S">);
-    case "L1S+": return new OutlinedRocksLayout(settings as Settings<"L1S+">);
-    case "L2AS": return new RocksLayoutWithPins(settings as Settings<"L2AS">);
-    case "L2AS+": return new OutlinedRocksLayoutWithPins(settings as Settings<"L2AS+">);
-    case "Blocks": return new BlocksLayout(settings as Settings<"Blocks">);
-    case "S-Blocks": return new SBlocksLayout(settings as Settings<"S-Blocks">);
+    case "L1P": return new PebbleLayout(settings);
+    case "L1S": return new RocksLayout(settings);
+    case "L1S+": return new OutlinedRocksLayout(settings);
+    case "L2AS": return new RocksLayoutWithPins(settings);
+    case "L2AS+": return new OutlinedRocksLayoutWithPins(settings);
+    case "Blocks": return new BlocksLayout(settings);
+    case "S-Blocks": return new SBlocksLayout(settings);
   }
-}
-
-export interface AlgorithmConstructor<A extends AlgorithmName> {
-  new (settings: Settings<A>): A;
 }
 
 /**

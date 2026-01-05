@@ -5,7 +5,7 @@ import reassocLayoutTree from "../reassoc/reassoc-layout-tree";
 import { FragmentsInfo, FragmentInfo } from "../layout-tree";
 import { default as GLPK, Options, LP } from "glpk.js";
 import { LayoutTree, WithMeasurements, WithOutlines } from "../reassoc/layout-tree";
-import { NumberSettingView, SettingView, ToggleSettingView, ViewSettings } from "../settings";
+import { LayoutSettings } from "../settings";
 import { checkPolygonOK, isPathCCW, Polygon, PolygonRendering } from "../polygon";
 import { Rect, horizontallyOverlap, inflate, width, height, union } from "../rect";
 import { Region, EMPTY, joinRegions, enumerateIndices, regionFromStackRef, singletonRegion } from "./region";
@@ -348,32 +348,23 @@ function translateRegionWithAdvance(backing: Backing, region: RegionWithAdvance,
   backing.translateRegion(region.region, v);
 }
 
-export class RocksLayoutSettings implements ViewSettings {
-  public translateWraps: boolean;
-  public idealLeading: number;
-
-  constructor(translateWraps: boolean, idealLeading: number) {
-    this.translateWraps = translateWraps;
-    this.idealLeading = idealLeading;
-  }
-
-  viewSettings(): SettingView[] {
-    return [
-      ToggleSettingView.new("translateWraps", this, "Translate wraps"),
-      NumberSettingView.new("idealLeading", this, "Ideal leading"),
-    ]
-  }
-
-  clone() {
-    return new RocksLayoutSettings(this.translateWraps, this.idealLeading);
-  }
+export interface RocksLayoutSettings extends LayoutSettings {
+  translateWraps: boolean;
 }
+
+export const defaultRocksLayoutSettings: RocksLayoutSettings = {
+  idealLeading: 0,
+  translateWraps: true
+};
 
 export class RocksLayout<D> implements alt.Layout<D> {
   private settings: RocksLayoutSettings;
 
-  constructor(settings: RocksLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<RocksLayoutSettings>) {
+    this.settings = {
+      ...defaultRocksLayoutSettings,
+      ...settings
+    };
   }
 
   /**
@@ -479,8 +470,11 @@ type L2AS<A = {}> = L2ASFragment<A>[][];
 export class RocksLayoutWithPins<D> implements alt.Layout<D> {
   private settings: RocksLayoutSettings;
 
-  constructor(settings: RocksLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<RocksLayoutSettings>) {
+    this.settings = {
+      ...defaultRocksLayoutSettings,
+      ...settings
+    }
   }
 
   /**
@@ -657,7 +651,6 @@ export class RocksLayoutWithPins<D> implements alt.Layout<D> {
       objective,
       subjectTo: constraints
     }, glpkOptions);
-    console.log("Soln:", soln.result.vars);
 
     // Now, finalize the layout by vertically positioning each line.
     let lastLineOffset = 0;
@@ -783,28 +776,13 @@ class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, T
   }
 }
 
-export class OutlinedRocksLayoutSettings implements ViewSettings {
-  public translateWraps: boolean;
-  public idealLeading: number;
-  public enableSimplification: boolean;
+export interface OutlinedRocksLayoutSettings extends RocksLayoutSettings {
+  enableSimplification: boolean;
+}
 
-  constructor(translateWraps: boolean, idealLeading: number, enableSimplification: boolean) {
-    this.translateWraps = translateWraps;
-    this.idealLeading = idealLeading;
-    this.enableSimplification = enableSimplification;
-  }
-
-  viewSettings(): SettingView[] {
-    return [
-      ToggleSettingView.new("translateWraps", this, "Translate wraps"),
-      NumberSettingView.new("idealLeading", this, "Ideal leading"),
-      ToggleSettingView.new("enableSimplification", this, "Enable simplification")
-    ]
-  }
-
-  clone() {
-    return new OutlinedRocksLayoutSettings(this.translateWraps, this.idealLeading, this.enableSimplification);
-  }
+export const defaultOutlinedRocksLayoutSettings: OutlinedRocksLayoutSettings = {
+  ...defaultRocksLayoutSettings,
+  enableSimplification: true
 }
 
 /**
@@ -815,8 +793,11 @@ export class OutlinedRocksLayoutSettings implements ViewSettings {
 export class OutlinedRocksLayout<D> implements alt.Layout<D> {
   protected settings: OutlinedRocksLayoutSettings;
 
-  constructor(settings: OutlinedRocksLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<OutlinedRocksLayoutSettings>) {
+    this.settings = {
+      ...defaultOutlinedRocksLayoutSettings,
+      ...settings,
+    }
   }
 
   protected layoutUnsimplified(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
@@ -926,7 +907,9 @@ export class OutlinedRocksLayout<D> implements alt.Layout<D> {
 
     const withOutlines = go(unsimplified.layoutTree, outerOutline);
 
-    console.warn("Nrocks failed: ", nFailed);
+    if(nFailed > 0) {
+      console.warn(`Simplification failed for ${nFailed} rocks.`);
+    }
     return new OutlinedRocksLayoutResult(withOutlines, unsimplified);
   }
 }

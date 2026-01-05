@@ -13,7 +13,7 @@ import {
 import { Polygon, PolygonRendering } from "../polygon";
 import { Rect, clone, width, height, translate } from "../rect";
 import { Svg, Render, SVGStyle } from "../render";
-import { ViewSettings, SettingView } from "../settings";
+import { LayoutSettings } from "../settings";
 
 /**
  * A range of indices.
@@ -926,27 +926,21 @@ class SBlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
   }
 }
 
-export class SBlocksLayoutSettings implements ViewSettings {
-  public idealLeading: number;
-
-  constructor(idealLeading: number) {
-    this.idealLeading = idealLeading;
-  }
-
-  viewSettings(): SettingView[] {
-    return []
-  }
-
-  clone() {
-    return new SBlocksLayoutSettings(this.idealLeading);
-  }
+export interface SBlocksLayoutSettings extends LayoutSettings {
 }
+
+export const defaultSBlocksLayoutSettings: SBlocksLayoutSettings = {
+  idealLeading: 0
+};
 
 export default class SBlocksLayout<D> implements Layout<D> {
   private settings: SBlocksLayoutSettings;
 
-  constructor(settings: SBlocksLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<SBlocksLayoutSettings>) {
+    this.settings = {
+      ...defaultSBlocksLayoutSettings,
+      ...settings
+    };
   }
 
   async layout(layoutTree: LayoutTree<D, WithMeasurements>): Promise<SBlocksLayoutResult<D>> {

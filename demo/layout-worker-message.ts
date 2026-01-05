@@ -5,11 +5,11 @@ export type RenderSettings = {
   renderFragmentBoundingBoxes?: boolean;
 };
 
-export type WorkerMsg<A extends rb.AlgorithmName> = {
+export type WorkerMsg = {
   type: "begin";
   layoutTree: rb.LayoutTree<void, rb.WithMeasurements>;
-  algoName: A;
-  algoSettings: rb.Settings<A>;
+  algoName: rb.AlgorithmName;
+  algoSettings: rb.AnySettings;
   renderSettings: RenderSettings;
 };
 

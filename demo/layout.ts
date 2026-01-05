@@ -37,10 +37,10 @@ function wait(time: number): Promise<void> {
   });
 }
 
-export default async function layout<A extends rb.AlgorithmName>(
+export default async function layout(
   layoutTree: rb.LayoutTree<void, rb.WithMeasurements>,
-  algoName: A,
-  algoSettings: rb.Settings<A>,
+  algoName: rb.AlgorithmName,
+  algoSettings: rb.AnySettings,
   renderSettings: RenderSettings,
   useWebWorkers?: boolean,
   abortSignal?: AbortSignal
@@ -50,7 +50,7 @@ export default async function layout<A extends rb.AlgorithmName>(
     // SVG.
     const worker = new Worker(new URL("layout-worker.ts", import.meta.url));
 
-    const msg: WorkerMsg<any> = {
+    const msg: WorkerMsg = {
       type: "begin",
       layoutTree,
       algoName,

@@ -210,40 +210,17 @@ type BenchResult = {
   renderable: rb.Render;
 }
 
-function asAlgorithmName(str: string): AlgorithmName {
-  if(str === "Unstyled") {
-    return asAlgorithmName("L1P");
-  } else if(str === "BlocksNS") {
-    return asAlgorithmName("BlocksNS");
-  } else {
-    const nm = rb.asAlgorithmName(str);
-    if(nm === undefined) {
-      throw new Error(`Unknown layout algorithm (${str})`);
-    }
-    return nm;
-  }
-}
-
-function settingsOfAlgoName<A extends rb.AlgorithmName>(algoName: A): rb.Settings<A>;
-function settingsOfAlgoName<A extends rb.AlgorithmName>(algoName: A): any {
-  switch(algoName) {
-    case "L1P": return new rb.PebbleLayoutSettings(true, 20);
-    case "L1S": return new rb.RocksLayoutSettings(true, 20);
-    case "L1S+": return new rb.OutlinedRocksLayoutSettings(true, 20, true);
-    case "S-Blocks": return new rb.SBlocksLayoutSettings(20);
-    case "Blocks": return new rb.BlocksLayoutSettings();
-    default:
-      throw new Error(`Unknown layout algorithm (${algoName})`);
-  }
-}
-
 function algoConstrOfAlgoName<A extends AlgorithmName>(algoName: A): rb.Layout<void> {
   let underlyingAlgoName: AlgorithmName
       = algoName === "Unstyled"
         ? "L1P" : algoName === "BlocksNS"
           ? "Blocks" : algoName;
 
-  return rb.constructAlgoByName(underlyingAlgoName, settingsOfAlgoName(underlyingAlgoName));
+  return rb.constructAlgoByName(underlyingAlgoName, {
+    idealLeading: 20,
+    enableSimplification: true,
+    translateWraps: true
+  });
 }
 
 function langOfSrcPath(srcPath: string): any {
@@ -339,7 +316,10 @@ async function bench(
 
   let refMesh: rb.MeshDistanceMesh | undefined = undefined;
   if(algoName !== "Unstyled") {
-    const refAlgo = new rb.RocksLayout(new rb.RocksLayoutSettings(true, 20));
+    const refAlgo = new rb.RocksLayout({
+      idealLeading: 20,
+      translateWraps: true
+    });
     const refResult = await refAlgo.layout(refTreeWithMeasurements);
     refMesh = rb.MeshDistanceMesh.fromFragments(refResult);
   }
@@ -616,12 +596,15 @@ function countCornersInResult(result: rb.TraverseOutlines): number {
   return sum;
 }
 
-async function countCorners(srcPath: string, useSimplification: boolean): Promise<number> {
+async function countCorners(srcPath: string, enableSimplification: boolean): Promise<number> {
   const testTree = layoutTreeOfSrcFile(srcPath);
   let testTreeWithMeasurements = rb.measureLayoutTree(testTree, measureFallback);
 
-  const settings = new rb.OutlinedRocksLayoutSettings(true, 20, useSimplification);
-  const algo = new rb.OutlinedRocksLayout(settings);
+  const algo = new rb.OutlinedRocksLayout({
+    translateWraps: true,
+    idealLeading: 20,
+    enableSimplification
+  });
   const res = await algo.layout(testTreeWithMeasurements);
 
   return countCornersInResult(res);

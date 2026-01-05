@@ -3,7 +3,7 @@ import * as rlt from "../reassoc/layout-tree";
 import reassocLayoutTree from "../reassoc/reassoc-layout-tree";
 import { FragmentsInfo, FragmentInfo } from "../layout-tree";
 import { Svg, Render, SVGStyle } from "../render";
-import { ViewSettings, SettingView, NumberSettingView, ToggleSettingView } from "../settings";
+import { LayoutSettings } from "../settings";
 import { add, Vector } from "../vector";
 import { addVector, subPoints, Point } from "../point";
 import { horizontallyOverlap, inflate, Rect, translate, width, height, union } from "../rect";
@@ -412,7 +412,7 @@ class PebbleLayoutResult<D> extends Render implements FragmentsInfo<D> {
     }
   }
 
-  render(svg: Svg, sty: SVGStyle) {
+  render(svg: Svg, _sty: SVGStyle) {
     const that = this;
     const allRects = [...this.allStacks()].map(stk => that.rectsOfStack(stk));
     for(const [rect, fill] of concatEvenly(allRects)) {
@@ -461,32 +461,23 @@ class PebbleLayoutResult<D> extends Render implements FragmentsInfo<D> {
   }
 }
 
-export class PebbleLayoutSettings implements ViewSettings {
-  public translateWraps: boolean;
-  public idealLeading: number;
+export interface PebbleLayoutSettings extends LayoutSettings {
+  translateWraps: boolean;
+}
 
-  constructor(translateWraps: boolean, idealLeading: number) {
-    this.translateWraps = translateWraps;
-    this.idealLeading = idealLeading;
-  }
-
-  viewSettings(): SettingView[] {
-    return [
-      ToggleSettingView.new("translateWraps", this, "Translate wraps"),
-      NumberSettingView.new("idealLeading", this, "Ideal leading"),
-    ]
-  }
-
-  clone() {
-    return new PebbleLayoutSettings(this.translateWraps, this.idealLeading);
-  }
+export const defaultPebbleLayoutSettings: PebbleLayoutSettings = {
+  idealLeading: 0,
+  translateWraps: true
 }
 
 export default class PebbleLayout<D> implements alt.Layout<D> {
   private settings: PebbleLayoutSettings;
 
-  constructor(settings: PebbleLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<PebbleLayoutSettings>) {
+    this.settings = {
+      ...defaultPebbleLayoutSettings,
+      ...settings
+    }
   }
 
   async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<PebbleLayoutResult<D>> {

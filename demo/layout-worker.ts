@@ -1,7 +1,7 @@
 import * as rb from "ragged-blocks";
 import { WorkerMsg, WorkerReponse } from "./layout-worker-message";
 
-onmessage = async (e: MessageEvent<WorkerMsg<any>>) => {
+onmessage = async (e: MessageEvent<WorkerMsg>) => {
   const data = e.data;
 
   if(data.type === "begin") {

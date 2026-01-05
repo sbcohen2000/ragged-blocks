@@ -45,6 +45,27 @@ function describeDuration(duration: number): string {
   return `${format.format(duration)} ${unit}`;
 }
 
+function settingRelevantForAlgo(key: string, algoName: rb.AlgorithmName): boolean {
+  switch(algoName) {
+    case "S-Blocks":
+    case "Blocks": return false;
+    case "L1P": return ["translateWraps"].indexOf(key) >= 0;
+    case "L1S":
+    case "L1S+":
+    case "L2AS":
+    case "L2AS+": return ["translateWraps", "enableSimplification"].indexOf(key) >= 0;
+  }
+}
+
+function descriptionOfSetting(key: string): string {
+  switch(key) {
+    case "translateWraps": return "Translate wraps";
+    case "enableSimplification": return "Enable simplification";
+    default:
+      return key;
+  }
+}
+
 export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutViewProps<A>) {
   const [statusText, setStatusText] = react.useState<string>("");
   const [layoutResult, setLayoutResult] = react.useState<LayoutResult>({
@@ -62,24 +83,11 @@ export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutView
 
   const [settingsOpen, setSettingsOpen] = react.useState<boolean>(false);
 
-  const [layoutSettings, setLayoutSettings] = react.useState<rb.Settings<A>>((() => {
-    switch (props.algoName) {
-      case "L1P":
-        return new rb.PebbleLayoutSettings(true, 10);
-      case "L1S":
-        return new rb.RocksLayoutSettings(true, 10);
-      case "L1S+":
-        return new rb.OutlinedRocksLayoutSettings(true, 10, true);
-      case "L2AS":
-        return new rb.RocksLayoutSettings(true, 10);
-      case "L2AS+":
-        return new rb.OutlinedRocksLayoutSettings(true, 10, true);
-      case "Blocks":
-        return new rb.BlocksLayoutSettings();
-      case "S-Blocks":
-        return new rb.SBlocksLayoutSettings(10);
-    }
-  })() as rb.Settings<A>);
+  const [layoutSettings, setLayoutSettings] = react.useState<rb.AnySettings>({
+    translateWraps: true,
+    idealLeading: 10,
+    enableSimplification: true
+  });
 
   const [renderSettings, setRenderSettings] = react.useState<RenderSettings>({
     renderDistanceMesh: false,
@@ -155,6 +163,7 @@ export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutView
     document.body.removeChild(dlLink);
   }
 
+console.log("---------------------------------");
   return (
     <div className={styles.layoutContainer} key={props.algoName}>
       <div className={styles.upperHalf}>
@@ -198,29 +207,31 @@ export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutView
           checked={renderSettings.renderFragmentBoundingBoxes}
           onChange={(onOff) =>
             setRenderSettings(settings => ({ ...settings, renderFragmentBoundingBoxes: onOff }))
-          }/>
+        }/>
         {
-          // TODO: Maybe state.algoSettings should expose an interface which provides
-          // a description for each setting and a way to modify the setting in a type-safe way.
-          [
-            ...layoutSettings.viewSettings().map(settingView => {
-              let toggle = settingView.asToggle();
-              if(toggle !== null) {
+          Object.entries(layoutSettings).flatMap(([key, value]) => {
+              if(settingRelevantForAlgo(key, props.algoName) && typeof(value) === "boolean") {
+console.log(key);
                 return (
-                  <div key={toggle.key}>
+                  <div key={key}>
                     <LabeledCheckbox
-                      label={toggle.description}
-                      checked={toggle.value}
+                      label={descriptionOfSetting(key)}
+                      checked={value}
                       onChange={(onOff) => {
-                        setLayoutSettings((toggle.update(onOff) as rb.Settings<A>));
+                        setLayoutSettings(settings => {
+                          const newSettings = { ...settings };
+                          (newSettings[key as keyof rb.AnySettings] as boolean) = onOff;
+                          return newSettings;
+                        });
                       }}
                     />
                   </div>
                 );
+              } else {
+                return [];
               }
-            }),
-          ]
-        }{" "}
+            })
+        }
       </Dropdown>
     </div>
   );

@@ -5,7 +5,7 @@ import { FragmentsInfo, FragmentInfo } from "../layout-tree";
 import { PolygonRendering, pathOfRect } from "../polygon";
 import { Svg, Render, SVGStyle } from "../render";
 import { Vector, add, zero } from "../vector";
-import { ViewSettings, SettingView } from "../settings";
+import { LayoutSettings } from "../settings";
 import { inflate, Rect, translate, union, clone, width, height } from "../rect";
 
 export type WithRelativeOffsets<A = {}> = {
@@ -102,21 +102,11 @@ class BlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
   }
 }
 
-export class BlocksLayoutSettings implements ViewSettings {
-  constructor() {
-  }
-
-  viewSettings(): SettingView[] {
-    return []
-  }
-
-  clone() {
-    return new BlocksLayoutSettings();
-  }
+export interface BlocksLayoutSettings extends LayoutSettings {
 }
 
 export default class BlocksLayout<D> implements alt.Layout<D> {
-  constructor(_settings: BlocksLayoutSettings) {}
+  constructor(_settings: Partial<BlocksLayoutSettings>) {}
 
   async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<BlocksLayoutResult<D>> {
     const empty: rlt.LayoutTree<D, rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
