@@ -35,6 +35,7 @@ export type Node<D, X extends Ann = Ann> = {
   type: "Node";
   padding: number;
   sty?: Partial<SVGStyle>;
+  userData?: D;
   children: LayoutTree<D, X>[];
 } & X["Node"];
 

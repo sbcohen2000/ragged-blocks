@@ -100,12 +100,18 @@ export abstract class Render {
   }
 }
 
-export interface TraverseOutlines {
+export type OutlineTraversalElement<D> = {
+  outline: Polygon,
+  userData?: D
+};
+
+export interface TraverseOutlines<D> {
   /**
    * Return a breadth-first traversal of the tree, yielding the
-   * polygon associated with each node.
+   * polygon associated with each node, along with the node's
+   * `userData`, if it exists.
    */
-  walk(): IterableIterator<{ outline: Polygon }>;
+  walk(): IterableIterator<OutlineTraversalElement<D>>;
 }
 
 /**

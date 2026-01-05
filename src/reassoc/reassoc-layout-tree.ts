@@ -221,6 +221,11 @@ export default function reassocLayoutTree<D, A extends alt.Ann>(
       if(lt.sty !== undefined) {
         out.sty = lt.sty;
       }
+
+      // Same with `userData`...
+      if(lt.userData !== undefined) {
+        out.userData = lt.userData;
+      }
       return out;
     }
   }

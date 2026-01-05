@@ -44,6 +44,7 @@ export type Wrap<D, X extends Ann = Ann> = {
   child: LayoutTree<D, X>;
   padding: number;
   sty?: Partial<SVGStyle>;
+  userData?: D;
 } & X["Wrap"];
 
 export type LayoutTree<D, X extends Ann = Ann> = JoinH<D, X> | JoinV<D, X> | Atom<D, X> | Spacer<X> | Wrap<D, X>;

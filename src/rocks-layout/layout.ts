@@ -9,7 +9,7 @@ import { LayoutSettings } from "../settings";
 import { checkPolygonOK, isPathCCW, Polygon, PolygonRendering } from "../polygon";
 import { Rect, horizontallyOverlap, inflate, width, height, union } from "../rect";
 import { Region, EMPTY, joinRegions, enumerateIndices, regionFromStackRef, singletonRegion } from "./region";
-import { Svg, Render, SVGStyle, TraverseOutlines } from "../render";
+import { Svg, Render, SVGStyle, TraverseOutlines, OutlineTraversalElement } from "../render";
 import { Timetable, WithRegions, regionOfLayoutTree } from "./timetable";
 import { add, Vector } from "../vector";
 import { addVector, Point, subPoints } from "../point";
@@ -708,7 +708,7 @@ export function outlineOfLayoutTree<D>(layoutTree: LayoutTree<D, WithOutlines>):
   }
 }
 
-class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, TraverseOutlines {
+class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, TraverseOutlines<D> {
   private layoutTree: LayoutTree<D, WithRegions<WithOutlines>>;
   private unsimplifiedResult: UnsimplifiedRocksLayoutResult<D>;
 
@@ -768,7 +768,11 @@ class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, T
         case "JoinH":
         case "JoinV": q.push(top.lhs); q.push(top.rhs); break;
         case "Wrap": {
-          yield ({ outline: top.outline });
+          const o: OutlineTraversalElement<D> = { outline: top.outline };
+          if(top.userData !== undefined) {
+            o.userData = top.userData;
+          }
+          yield o;
           q.push(top.child);
         } break;
       }
