@@ -6,7 +6,7 @@ import { FragmentsInfo, FragmentInfo } from "../layout-tree";
 import { default as GLPK, Options, LP } from "glpk.js";
 import { LayoutTree, WithMeasurements, WithOutlines } from "../reassoc/layout-tree";
 import { NumberSettingView, SettingView, ToggleSettingView, ViewSettings } from "../settings";
-import { Polygon, PolygonRendering } from "../polygon";
+import { checkPolygonOK, isPathCCW, Polygon, PolygonRendering } from "../polygon";
 import { Rect, horizontallyOverlap, inflate, width, height, union } from "../rect";
 import { Region, EMPTY, joinRegions, enumerateIndices, regionFromStackRef, singletonRegion } from "./region";
 import { Svg, Render, SVGStyle, TraverseOutlines } from "../render";
@@ -15,6 +15,7 @@ import { add, Vector } from "../vector";
 import { addVector, Point, subPoints } from "../point";
 import { fromRectangles } from "../polygon/from-rectangles";
 import { pathOfRect, offsetPolygon, simplifyPolygons } from "../polygon";
+import { toSVG } from "../render";
 
 /**
  * Find the leading between regions `a` and `b`. In other words, find
@@ -852,6 +853,7 @@ export class OutlinedRocksLayout<D> implements alt.Layout<D> {
     };
     */
 
+    let nFailed = 0;
     const go = (root: LayoutTree<D, WithRegions>, outline: Polygon): LayoutTree<D, WithRegions<WithOutlines>> => {
       switch(root.type) {
         case "JoinH":
@@ -875,7 +877,19 @@ export class OutlinedRocksLayout<D> implements alt.Layout<D> {
           // const _ogRhsOutline = clonePolygon(rhsOutline);
 
           if(this.settings.enableSimplification) {
-            simplifyPolygons(outline, [lhsOutline, rhsOutline]);
+            // simplifyPolygons(outline, [lhsOutline, rhsOutline]);
+            try {
+              simplifyPolygons(outline, [lhsOutline, rhsOutline]);
+            } catch(e) {
+              nFailed += 1;
+              // console.log("Simplification failed:")
+
+              // console.log(toSVG(
+              //   new PolygonRendering(outline).withStyles({ stroke: "blue" })
+              //     .stack(new PolygonRendering(lhsOutline).withStyles({ fill: "rgba(200, 200, 100, 0.5)", stroke: "none" }))
+              //     .stack(new PolygonRendering(rhsOutline).withStyles({ fill: "rgba(200, 100, 200, 0.5)", stroke: "none" }))
+              // ));
+            }
           }
 
           // *** Debug ***
@@ -911,6 +925,8 @@ export class OutlinedRocksLayout<D> implements alt.Layout<D> {
     }
 
     const withOutlines = go(unsimplified.layoutTree, outerOutline);
+
+    console.warn("Nrocks failed: ", nFailed);
     return new OutlinedRocksLayoutResult(withOutlines, unsimplified);
   }
 }
