@@ -12,8 +12,7 @@
         "tree-sitter": "^0.21.0",
         "tree-sitter-haskell": "^0.23.1",
         "tree-sitter-python": "0.23.4",
-        "tree-sitter-typescript": "^0.23.2",
-        "ts-compat": "file:../ts-compat/"
+        "tree-sitter-typescript": "^0.23.2"
     },
     "devDependencies": {
         "tsx": "^4.20.3",

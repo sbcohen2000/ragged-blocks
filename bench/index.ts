@@ -7,7 +7,7 @@ import TypeScript from "tree-sitter-typescript";
 import fs from "node:fs";
 import { basename, extname } from "node:path";
 import { exit } from "node:process";
-import { parse, ParseSettings } from "ts-compat";
+import { parse, ParseSettings } from "./parse";
 import { program, Command, Argument, Option } from "commander";
 
 /**
