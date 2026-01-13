@@ -102,6 +102,7 @@ export abstract class Render {
 
 export type OutlineTraversalElement<D> = {
   outline: Polygon,
+  sty?: Partial<SVGStyle>,
   userData?: D
 };
 

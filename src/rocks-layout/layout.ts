@@ -755,7 +755,7 @@ class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, T
     return this.unsimplifiedResult.fragmentsInfo();
   }
 
-  *walk(): IterableIterator<{ outline: Polygon }> {
+  *walk(): IterableIterator<OutlineTraversalElement<D>> {
     const q: LayoutTree<D, WithRegions<WithOutlines>>[] = [];
     q.push(this.layoutTree);
 
@@ -771,6 +771,9 @@ class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, T
           const o: OutlineTraversalElement<D> = { outline: top.outline };
           if(top.userData !== undefined) {
             o.userData = top.userData;
+          }
+          if(top.sty !== undefined) {
+            o.sty = top.sty;
           }
           yield o;
           q.push(top.child);
