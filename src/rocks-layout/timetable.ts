@@ -249,7 +249,7 @@ export class Timetable {
 
   /**
    * Get the maximum padding that can be applied to the element at the
-   * given index.
+   * given index. The element must not be a spacer.
    *
    * @param index The index of the element.
    * @returns The maximum padding that may be applied to the element

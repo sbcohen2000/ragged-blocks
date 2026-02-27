@@ -60,4 +60,3 @@ The demo program additionally depends on **webpack** and friends to generate a b
 - [ ] Remove `text` property from `src/layout-tree.ts`'s `Atom` and `Spacer` and `src/reassoc/layout-tree'ts`'s `Atom` and `Spacer`.
   - The `userData` property subsumes `text`. Furthermore, removing `text` in favor of an API which only assumes that `Atom` and `Spacer`s can be measured would allow for more interesting stuff to be placed at the leaves of the layout tree (such as widgets).
   - I expect that `FragmentInfo` will need to be further enriched to return info about both `Atom`s and `Spacer`s.
-- [ ] Remove `src/layout-tree.ts`'s `eachAtomWithInheritedStyles`. This function is a hack that works around the fact that `FragmentInfo` doesn't return the style which should be applied at each `Atom`. `FragmentInfo` should have a `sty` field, or at least point to the nearest `Node` above the `Atom` to which it refers.

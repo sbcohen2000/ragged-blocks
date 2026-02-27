@@ -4,9 +4,10 @@ import parseExample from "../example-parser";
 import LayoutView from "./layout-view";
 
 import * as styles from "./help-text.module.css";
+import { UserData } from "../layout-user-data";
 
 interface HelpTextProps {
-  measure: (text: string) => rb.Rect;
+  measure: (text: string, userData: UserData | undefined) => rb.Rect;
 }
 
 export default function HelpText(props: HelpTextProps) {
@@ -156,8 +157,8 @@ export default function HelpText(props: HelpTextProps) {
     }
   })();
 
-  const exampleLayoutTree: rb.LayoutTree<void> = react.useMemo(() => {
-    return parseExample(phaseText) as rb.LayoutTree<void>;
+  const exampleLayoutTree: rb.LayoutTree<UserData> = react.useMemo(() => {
+    return parseExample(phaseText) as rb.LayoutTree<UserData>;
   }, [phaseText]);
 
   return (

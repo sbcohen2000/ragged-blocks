@@ -10,6 +10,10 @@ import { exit } from "node:process";
 import { parse, ParseSettings } from "./parse";
 import { program, Command, Argument, Option } from "commander";
 
+type UserData = {
+  textBaselineOffset: number;
+};
+
 /**
  * Produce a human readable string representing the given time in
  * seconds.
@@ -172,17 +176,21 @@ function measureFallback(text: string): rb.Rect {
  * @param font A path to the font file to load.
  * @returns A measure function using `font`.
  */
-function mkMeasure(font: string): (text: string) => rb.Rect {
+function mkMeasure(font: string): (text: string, userData: UserData | undefined) => rb.Rect {
   const face = freetype.NewFace(font);
   face.setPixelSizes(12, 0);
   const ascend = face.properties().ascender / 64;
   const descend = face.properties().descender / 64;
 
-  return (text: string) => {
+  return (text: string, userData: UserData | undefined) => {
     let width = 0;
     for(let i = 0; i < text.length; ++i) {
       const glyph = face.loadChar(text.charCodeAt(i));
       width += glyph.metrics.horiAdvance / 64;
+    }
+
+    if(userData) {
+      userData.textBaselineOffset = ascend;
     }
 
     return {
@@ -210,7 +218,7 @@ type BenchResult = {
   renderable: rb.Render;
 }
 
-function algoConstrOfAlgoName<A extends AlgorithmName>(algoName: A): rb.Layout<void> {
+function algoConstrOfAlgoName<A extends AlgorithmName>(algoName: A): rb.Layout<UserData> {
   let underlyingAlgoName: AlgorithmName
       = algoName === "Unstyled"
         ? "L1P" : algoName === "BlocksNS"
@@ -267,7 +275,7 @@ const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   renderTestMesh: false
 };
 
-function layoutTreeOfSrcFile(srcPath: string, useSpacers?: boolean): rb.LayoutTree<void> {
+function layoutTreeOfSrcFile(srcPath: string, useSpacers?: boolean): rb.LayoutTree<UserData> {
   if(useSpacers === undefined) {
     useSpacers = true;
   }
@@ -279,13 +287,13 @@ function layoutTreeOfSrcFile(srcPath: string, useSpacers?: boolean): rb.LayoutTr
     useSpacers,
     breakMultiLineAtoms: ext === ".py",
   };
-  return parse(src, lang, settings);
+  return parse(src, lang, settings) as rb.LayoutTree<UserData>;
 }
 
 async function bench(
   srcPath: string,
   algoName: AlgorithmName,
-  measure: (text: string) => rb.Rect,
+  measure: (text: string, userData: UserData | undefined) => rb.Rect,
   renderSettings?: Partial<RenderSettings>
 ): Promise<BenchResult> {
   if(!renderSettings) {
@@ -343,16 +351,14 @@ async function bench(
     vertMeshDistances = refMesh.verticalMeshDistances(testMesh);
   }
 
-  const atomsIter = rb.eachAtomWithInheritedStyles(testTreeWithMeasurements);
   const text = new (class extends rb.Render {
     render(svg: rb.Svg, _sty: rb.SVGStyle) {
       for(const frag of testResult.fragmentsInfo()) {
-        const atom = atomsIter.next().value as rb.Atom<void, rb.WithMeasurements<rb.WithStyles>>;
         const text = svg.text(frag.text);
         text.fontFamily("Inconsolata Medium");
         text.fontSize("12px");
-        text.fill(atom.sty.color);
-        text.move(frag.rect.left, frag.rect.top - atom.rect.top);
+
+        text.move(frag.rect.left, frag.rect.top + (frag.userData?.textBaselineOffset ?? 0));
       }
     }
 
@@ -586,7 +592,7 @@ async function mkErrorTables(forLaTeX: boolean) {
   }));
 }
 
-function countCornersInResult(result: rb.TraverseOutlines): number {
+function countCornersInResult<D>(result: rb.TraverseOutlines<D>): number {
   let sum = 0;
   for(const pgon of result.walk()) {
     sum += pgon.outline.reduce((sum: number, path: rb.polygon.Path) => {

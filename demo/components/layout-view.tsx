@@ -10,11 +10,12 @@ import {
   faDownload,
 } from "@fortawesome/free-solid-svg-icons";
 import Tooltip from "./tooltip-component";
+import { UserData } from "../layout-user-data";
 
 interface LayoutViewProps<A extends rb.AlgorithmName> {
-  layoutTree: rb.LayoutTree<void>;
+  layoutTree: rb.LayoutTree<UserData>;
   algoName: A;
-  measure: (text: string) => rb.Rect;
+  measure: (text: string, userData: UserData | undefined) => rb.Rect;
   useWebWorkers?: boolean;
 }
 

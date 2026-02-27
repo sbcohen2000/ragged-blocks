@@ -7,8 +7,7 @@ import {
   LayoutTree,
   WithMeasurements,
   WithOutlines,
-  Ann,
-  eachAtomWithInheritedStyles
+  Ann
 } from "../layout-tree";
 import { Polygon, PolygonRendering } from "../polygon";
 import { Rect, clone, width, height, translate } from "../rect";
@@ -908,9 +907,16 @@ class SBlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
 
   fragmentsInfo(): FragmentInfo<D>[] {
     let out: FragmentInfo<D>[] = [];
-    for(const atom of eachAtomWithInheritedStyles(this.layoutTree)) {
-      out.push({ ...atom });
-    }
+
+    const go = (root: LayoutTree<D, WithMeasurements<WithFragmentRanges>>) => {
+      switch(root.type) {
+        case "Newline": break;
+        case "Atom": out.push({ ...root }); break;
+        case "Node": root.children.forEach(go); break;
+      }
+    };
+    go(this.layoutTree);
+
     return out;
   }
 }

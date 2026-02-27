@@ -1,4 +1,5 @@
 import * as rb from "ragged-blocks";
+import { UserData } from "./layout-user-data";
 
 export type RenderSettings = {
   renderDistanceMesh?: boolean;
@@ -7,7 +8,7 @@ export type RenderSettings = {
 
 export type WorkerMsg = {
   type: "begin";
-  layoutTree: rb.LayoutTree<void, rb.WithMeasurements>;
+  layoutTree: rb.LayoutTree<UserData, rb.WithMeasurements>;
   algoName: rb.AlgorithmName;
   algoSettings: rb.AnySettings;
   renderSettings: RenderSettings;

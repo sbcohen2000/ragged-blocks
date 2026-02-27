@@ -1,5 +1,6 @@
 import Parsimmon from "parsimmon";
 import { LayoutTree, Node, WithStyleRefs, SVGStyle, BorderStyle } from "ragged-blocks";
+import { UserData } from "./layout-user-data";
 
 /**
  * Produce a parser which parses an escape character, then the given
@@ -262,23 +263,26 @@ const pExample: Parsimmon.Parser<Example> =
  * @param sty The environment of style references.
  */
 function resolveStyleReferences(
-  root: LayoutTree<void, WithStyleRefs>,
-  sty: Map<string, Style>
+  root: LayoutTree<UserData, WithStyleRefs>,
+  sty: Map<string, Style>,
+  parentStyRef: string | undefined
 ) {
   switch(root.type) {
     case "Newline": break;
-    case "Atom": break;
+    case "Atom": {
+      const styles = parentStyRef ? (sty.get(parentStyRef) ?? {}) : {};
+      root.userData = { sty: styles, textBaselineOffset: 0 };
+    } break;
     case "Node": {
       if(root.styleRef !== undefined) {
-        const styles = sty.get(root.styleRef);
-        if(styles) {
-          root.padding = styles.padding ?? 0;
-          root.sty = styles;
-        }
+        const styles = sty.get(root.styleRef) ?? {};
+        root.padding = styles.padding ?? 0;
+        root.sty = styles;
+        root.userData = { sty: styles, textBaselineOffset: 0 };
       }
 
-      root.children.forEach(child => resolveStyleReferences(child, sty));
-    }
+      root.children.forEach(child => resolveStyleReferences(child, sty, root.styleRef));
+    } break;
   }
 }
 
@@ -291,15 +295,15 @@ function resolveStyleReferences(
  * @returns A `LayoutTree` if the parse was successful, or a `string`
  * error message otherwise.
  */
-export default function parseExample(text: string): LayoutTree<void> | string {
+export default function parseExample(text: string): LayoutTree<UserData> | string {
   const result = pExample.parse(text);
   if(result.status) {
-    const treeWithRefs: LayoutTree<void, WithStyleRefs> = {
+    const treeWithRefs: LayoutTree<UserData, WithStyleRefs> = {
       type: "Node",
       padding: 0,
-      children: result.value.layoutTrees
+      children: result.value.layoutTrees as LayoutTree<UserData, WithStyleRefs>[]
     };
-    resolveStyleReferences(treeWithRefs, new Map(result.value.styleDefs));
+    resolveStyleReferences(treeWithRefs, new Map(result.value.styleDefs), undefined);
     return treeWithRefs;
   } else {
     return Parsimmon.formatError(text, result);

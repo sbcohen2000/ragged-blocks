@@ -66,11 +66,12 @@ export interface Layout<D> {
  * Information about a positioned fragment.
  */
 export type FragmentInfo<D> = {
-  type: "Atom" | "Spacer";
+  type: "Atom";
   text: string;
   rect: Rect;
   lineNo: number;
   userData?: D;
+  isSpacer: boolean;
 };
 
 /**
@@ -105,11 +106,14 @@ export function fragmentPosition<D>(fragment: FragmentInfo<D>): Point {
  * @returns A new layout tree, identical to the input, except that
  * each leaf has been annotated with its size according to `measure`.
  */
-export function measureLayoutTree<D>(tree: LayoutTree<D>, measure: (text: string) => Rect): LayoutTree<D, WithMeasurements> {
+export function measureLayoutTree<D>(
+  tree: LayoutTree<D>,
+  measure: (text: string, userData: D | undefined) => Rect
+): LayoutTree<D, WithMeasurements> {
   switch(tree.type) {
     case "Newline": return tree;
     case "Atom": {
-      const rect = measure(tree.text);
+      const rect = measure(tree.text, tree.userData);
       return {
         ...tree,
         rect
@@ -188,32 +192,6 @@ export type WithStyles<A = {}> = {
   Newline: object;
   Node:    object;
 } & A;
-
-/**
- * Yield each `Atom` in a `LayoutTree` in document order. Each `Atom`
- * is also annotated with the styles applied to the nearest `Node`.
- *
- * @param tree The tree to iterate over.
- * @returns An iterator over `tree`'s `Atom`s.
- */
-export function *eachAtomWithInheritedStyles<D, A extends Ann>(tree: LayoutTree<D, A>): IterableIterator<Atom<D, WithStyles<A>>> {
-  const stack: LayoutTree<D, A>[] = [tree];
-  const styStack: Partial<SVGStyle>[] = [{}];
-
-  while(stack.length > 0) {
-    const top = stack.pop()!;
-    const sty = styStack.pop()!;
-
-    if(top.type === "Node") {
-      for(let i = top.children.length - 1; i >= 0; --i) {
-        stack.push(top.children[i]);
-        styStack.push({ ...sty, ...top.sty });
-      }
-    } else if(top.type === "Atom") {
-      yield { ...top, sty };
-    }
-  }
-}
 
 /**
  * Given a type which implements `FragmentsInfo`, produce a

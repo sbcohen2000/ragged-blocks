@@ -38,7 +38,7 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
   for(const bIdx of enumerateIndices(b)) {
     // Check if `rb` is a spacer.
     const rb = backing.getByIndex(bIdx);
-    if(typeof rb === "number") {
+    if(rb.isSpacer) {
       continue;
     }
 
@@ -55,8 +55,7 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
 
         const ra = backing.getByIndex(aIdx);
 
-        // Check if `ra` is a spacer.
-        if(typeof ra === "number") {
+        if(ra.isSpacer) {
           continue;
         }
 
@@ -112,7 +111,7 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
         // Check if one of `ax` or `bx` is a spacer. In that case, since
         // spacers occupy no vertical space, we can just check a
         // different pair.
-        if(typeof ra === "number" || typeof rb === "number") {
+        if(ra.isSpacer || rb.isSpacer) {
           continue;
         }
 
@@ -223,9 +222,7 @@ class UnsimplifiedRocksLayoutResult<D> extends Render implements FragmentsInfo<D
     const go = (root: LayoutTree<D, WithRegions>) => {
       switch(root.type) {
         case "Atom": {
-          if(root.isSpacer) break;
           const rect = this.backing.getByIndex(root.stackRef.index);
-          assert(typeof rect !== "number", "Found Spacer where Atom is expected");
           out.push({ ...root, rect, lineNo });
         } break;
         case "JoinV": {
@@ -408,12 +405,8 @@ export class RocksLayout<D> implements alt.Layout<D> {
     const go = (root: LayoutTree<D, WithRegions<WithMeasurements>>): L1s => {
       switch(root.type) {
         case "Atom": {
-          if(root.isSpacer) {
-            assert(root.stackRef.index === backing.pushSpacer(width(root.rect)));
-          } else {
-            const maxPadding = timetable.getMaxPadding(root.stackRef.index);
-            assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding));
-          }
+          const maxPadding = root.isSpacer ? 0 : timetable.getMaxPadding(root.stackRef.index);
+          assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding, root.isSpacer));
           return [{
             region: regionFromStackRef(root.stackRef),
             origin: { x: 0, y: 0 },
@@ -513,8 +506,7 @@ export class RocksLayoutWithPins<D> implements alt.Layout<D> {
   private static advance(backing: Backing, timetable: Timetable, aIdx: number, bIdx: number): number {
     const [aSpc, bSpc] = timetable.spaceBetween(aIdx, bIdx);
     const aRectOrSpacer = backing.getByIndex(aIdx);
-    const aWidth = typeof aRectOrSpacer === "number" ? aRectOrSpacer : width(aRectOrSpacer);
-    return aWidth + aSpc + bSpc;
+    return width(aRectOrSpacer) + aSpc + bSpc;
   }
 
   async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
@@ -530,12 +522,8 @@ export class RocksLayoutWithPins<D> implements alt.Layout<D> {
     const go = (root: LayoutTree<D, WithRegions<WithMeasurements>>): L2AS => {
       switch(root.type) {
         case "Atom": {
-          if(root.isSpacer) {
-            assert(root.stackRef.index === backing.pushSpacer(width(root.rect)));
-            return [[{ pinId: undefined, idx: root.stackRef.index }]];
-          }
-          const maxPadding = timetable.getMaxPadding(root.stackRef.index);
-          assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding));
+          const maxPadding = root.isSpacer ? 0 : timetable.getMaxPadding(root.stackRef.index);
+          assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding, root.isSpacer));
           if(root.pinId !== undefined) {
             allPinIds.add(root.pinId);
           }

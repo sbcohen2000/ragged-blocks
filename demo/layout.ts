@@ -1,4 +1,5 @@
 import * as rb from "ragged-blocks";
+import { UserData } from "./layout-user-data";
 import { WorkerMsg, WorkerReponse } from "./layout-worker-message";
 
 export type RenderSettings = {
@@ -38,7 +39,7 @@ function wait(time: number): Promise<void> {
 }
 
 export default async function layout(
-  layoutTree: rb.LayoutTree<void, rb.WithMeasurements>,
+  layoutTree: rb.LayoutTree<UserData, rb.WithMeasurements>,
   algoName: rb.AlgorithmName,
   algoSettings: rb.AnySettings,
   renderSettings: RenderSettings,
@@ -125,18 +126,18 @@ export default async function layout(
 
         const beginTime = performance.now();
 
-        const atomsIter = rb.eachAtomWithInheritedStyles(layoutTree);
-        const algo = rb.constructAlgoByName(algoName, algoSettings);
+        const algo: rb.Algorithm<UserData> = rb.constructAlgoByName(algoName, algoSettings);
         const layoutResult = await algo.layout(layoutTree);
         const text = new (class extends rb.Render {
           render(svg: rb.Svg, _sty: rb.SVGStyle) {
             for(const frag of layoutResult.fragmentsInfo()) {
-              const atom = atomsIter.next().value as rb.Atom<void, rb.WithMeasurements<rb.WithStyles>>;
               const text = svg.text(frag.text);
               text.fontFamily("Inconsolata-Medium");
               text.fontSize("12px");
-              text.fill(atom.sty.color);
-              text.move(frag.rect.left, frag.rect.top - atom.rect.top);
+              if(frag.userData) {
+                text.fill(frag.userData.sty.color);
+              }
+              text.move(frag.rect.left, frag.rect.top + (frag.userData?.textBaselineOffset ?? 0));
             }
           }
 
