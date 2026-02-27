@@ -4,7 +4,7 @@ import * as rlt from "../../src/reassoc/layout-tree";
 import reassocLayoutTree from "../../src/reassoc/reassoc-layout-tree";
 
 function aatom(): alt.Atom<void> {
-  return { type: "Atom", text: "" };
+  return { type: "Atom", text: "", isSpacer: false };
 }
 
 function newline(): alt.Newline {
@@ -16,7 +16,7 @@ function node(children: alt.LayoutTree<void>[]): alt.Node<void> {
 }
 
 function ratom(): rlt.Atom<void> {
-  return { type: "Atom", text: "" };
+  return { type: "Atom", text: "", isSpacer: false };
 }
 
 function joinv(lhs: rlt.LayoutTree<void>, rhs: rlt.LayoutTree<void>): rlt.JoinV<void> {

@@ -12,7 +12,6 @@ export type WithRelativeOffsets<A = {}> = {
   JoinH:   { rhsRelOfs: Vector };
   JoinV:   { rhsRelOfs: Vector };
   Atom:    { rect: Rect };
-  Spacer:  { width: number };
   Wrap:    { relRect: Rect, childRelOfs: Vector };
 } & A;
 
@@ -28,8 +27,7 @@ function outermostRect<D>(layoutTree: rlt.LayoutTree<D, rlt.WithPositions>): Rec
   switch(layoutTree.type) {
     case "JoinH":
     case "JoinV": return outermostRect(layoutTree.lhs) || outermostRect(layoutTree.rhs);
-    case "Atom": return layoutTree.rect;
-    case "Spacer": return null;
+    case "Atom": return layoutTree.isSpacer ? null : layoutTree.rect;
     case "Wrap": return layoutTree.rect;
   }
 }
@@ -50,8 +48,7 @@ class BlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
           go(root.lhs);
           go(root.rhs);
         } break;
-        case "Atom":
-        case "Spacer": break;
+        case "Atom": break;
         case "Wrap": {
           if(width(root.rect) > 0 && height(root.rect) > 0) {
             const p = pathOfRect(root.rect);
@@ -88,9 +85,8 @@ class BlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
           go(root.rhs);
         } break;
         case "Atom": {
-          out.push({ ...root, lineNo });
+          if(!root.isSpacer) out.push({ ...root, lineNo });
         } break;
-        case "Spacer": break;
         case "Wrap": {
           go(root.child);
         } break;
@@ -109,7 +105,7 @@ export default class BlocksLayout<D> implements alt.Layout<D> {
   constructor(_settings: Partial<BlocksLayoutSettings>) {}
 
   async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<BlocksLayoutResult<D>> {
-    const empty: rlt.LayoutTree<D, rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
+    const empty: rlt.LayoutTree<D, rlt.WithMeasurements> = { type: "Atom", text: "", isSpacer: true, rect: { left: 0, right: 0, top: 0, bottom: 0 } };
     const rlt: rlt.LayoutTree<D, rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
 
     // Note: The blocks layout algorithm is implemented in two stages:
@@ -145,10 +141,10 @@ export default class BlocksLayout<D> implements alt.Layout<D> {
           return [{ ...root, lhs, rhs, rhsRelOfs: ofs }, union(lhsRelRect, rhsRelRect)];
         }
         case "Atom": {
+          if(root.isSpacer) {
+            return [{ ...root }, { left: 0, right: width(root.rect), top: 0, bottom: 0 }];
+          }
           return [{ ...root }, clone(root.rect)];
-        }
-        case "Spacer": {
-          return [{ ...root }, { left: 0, right: root.width, top: 0, bottom: 0 }];
         }
         case "Wrap": {
           let [child, childRelRect] = goRel(root.child);
@@ -174,11 +170,10 @@ export default class BlocksLayout<D> implements alt.Layout<D> {
           return { ...root, lhs, rhs };
         }
         case "Atom": {
+          if(root.isSpacer) return { ...root };
           const rect = translate(root.rect, ofs);
           return { ...root, rect };
         }
-        case "Spacer":
-          return { ...root };
         case "Wrap": {
           const rect = translate(root.relRect, ofs);
           const child = goFinalize(root.child, add(ofs, root.childRelOfs));

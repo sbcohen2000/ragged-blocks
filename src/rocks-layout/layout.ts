@@ -159,8 +159,7 @@ class UnsimplifiedRocksLayoutResult<D> extends Render implements FragmentsInfo<D
   render(svg: Svg, _sty: SVGStyle): void {
     const go = (root: LayoutTree<D, WithRegions>) => {
       switch(root.type) {
-        case "Atom":
-        case "Spacer": break; // Nothing to do.
+        case "Atom": break; // Nothing to do.
         case "JoinV":
         case "JoinH": {
           go(root.lhs);
@@ -224,11 +223,11 @@ class UnsimplifiedRocksLayoutResult<D> extends Render implements FragmentsInfo<D
     const go = (root: LayoutTree<D, WithRegions>) => {
       switch(root.type) {
         case "Atom": {
+          if(root.isSpacer) break;
           const rect = this.backing.getByIndex(root.stackRef.index);
           assert(typeof rect !== "number", "Found Spacer where Atom is expected");
           out.push({ ...root, rect, lineNo });
         } break;
-        case "Spacer": break;
         case "JoinV": {
           go(root.lhs);
           lineNo += 1;
@@ -402,29 +401,25 @@ export class RocksLayout<D> implements alt.Layout<D> {
 
   async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
     const backing = new Backing();
-    const empty: LayoutTree<D, WithMeasurements> = { type: "Spacer", width: 0, text: "" };
+    const empty: LayoutTree<D, WithMeasurements> = { type: "Atom", text: "", isSpacer: true, rect: { left: 0, right: 0, top: 0, bottom: 0 } };
     const rlt: LayoutTree<D, WithMeasurements> = reassocLayoutTree(layoutTree, empty);
     const [timetable, ltWithRegions] = Timetable.fromLayoutTree(rlt);
 
     const go = (root: LayoutTree<D, WithRegions<WithMeasurements>>): L1s => {
       switch(root.type) {
         case "Atom": {
-          const maxPadding = timetable.getMaxPadding(root.stackRef.index);
-          assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding));
+          if(root.isSpacer) {
+            assert(root.stackRef.index === backing.pushSpacer(width(root.rect)));
+          } else {
+            const maxPadding = timetable.getMaxPadding(root.stackRef.index);
+            assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding));
+          }
           return [{
             region: regionFromStackRef(root.stackRef),
             origin: { x: 0, y: 0 },
             advance: { dx: width(root.rect), dy: 0}
           }]
         };
-        case "Spacer": {
-          assert(root.stackRef.index === backing.pushSpacer(root.width));
-          return [{
-            region: regionFromStackRef(root.stackRef),
-            origin: { x: 0, y: 0 },
-            advance: { dx: root.width, dy: 0 }
-          }];
-        }
         case "JoinH": {
           const layout = go(root.lhs);
           RocksLayout.extendH(backing, layout, go(root.rhs));
@@ -524,7 +519,7 @@ export class RocksLayoutWithPins<D> implements alt.Layout<D> {
 
   async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
     const backing = new Backing();
-    const empty: LayoutTree<D, WithMeasurements> = { type: "Spacer", width: 0, text: "" };
+    const empty: LayoutTree<D, WithMeasurements> = { type: "Atom", text: "", isSpacer: true, rect: { left: 0, right: 0, top: 0, bottom: 0 } };
     const rlt: LayoutTree<D, WithMeasurements> = reassocLayoutTree(layoutTree, empty);
     const [timetable, ltWithRegions] = Timetable.fromLayoutTree(rlt);
 
@@ -535,6 +530,10 @@ export class RocksLayoutWithPins<D> implements alt.Layout<D> {
     const go = (root: LayoutTree<D, WithRegions<WithMeasurements>>): L2AS => {
       switch(root.type) {
         case "Atom": {
+          if(root.isSpacer) {
+            assert(root.stackRef.index === backing.pushSpacer(width(root.rect)));
+            return [[{ pinId: undefined, idx: root.stackRef.index }]];
+          }
           const maxPadding = timetable.getMaxPadding(root.stackRef.index);
           assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding));
           if(root.pinId !== undefined) {
@@ -542,10 +541,6 @@ export class RocksLayoutWithPins<D> implements alt.Layout<D> {
           }
           return [[{ pinId: root.pinId, idx: root.stackRef.index }]];
         };
-        case "Spacer": {
-          assert(root.stackRef.index === backing.pushSpacer(root.width));
-          return [[{ pinId: undefined, idx: root.stackRef.index }]];
-        }
         case "JoinH": {
           const layout = go(root.lhs);
           RocksLayoutWithPins.extendH(layout, go(root.rhs));
@@ -702,7 +697,6 @@ export function outlineOfLayoutTree<D>(layoutTree: LayoutTree<D, WithOutlines>):
     case "JoinV": {
       return outlineOfLayoutTree(layoutTree.lhs) ?? outlineOfLayoutTree(layoutTree.rhs);
     }
-    case "Spacer":
     case "Atom": return null;
     case "Wrap": return layoutTree.outline;
   }
@@ -721,8 +715,7 @@ class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, T
   render(svg: Svg, sty: SVGStyle) {
     const go = (root: LayoutTree<D, WithRegions<WithOutlines>>) => {
       switch(root.type) {
-        case "Atom":
-        case "Spacer": break;
+        case "Atom": break;
         case "JoinV":
         case "JoinH": {
           go(root.lhs);
@@ -763,8 +756,7 @@ class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, T
       const top = q.shift()!;
 
       switch(top.type) {
-        case "Atom":
-        case "Spacer": break;
+        case "Atom": break;
         case "JoinH":
         case "JoinV": q.push(top.lhs); q.push(top.rhs); break;
         case "Wrap": {
@@ -898,8 +890,7 @@ export class OutlinedRocksLayout<D> implements alt.Layout<D> {
             rhs: go(root.rhs, rhsOutline)
           }
         }
-        case "Atom":
-        case "Spacer": return root;
+        case "Atom": return root;
         case "Wrap": {
           let childOutline = offsetPolygon(-root.padding, outline);
 

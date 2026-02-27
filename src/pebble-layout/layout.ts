@@ -18,9 +18,7 @@ type Stack = {
   rect: Rect;
   cells: Cell[];
   text: string;
-} | {
-  type: "Spacer",
-  width: number;
+  isSpacer: boolean;
 };
 
 /**
@@ -30,7 +28,7 @@ type Stack = {
  * @param v The vector by which to translate `stack`.
  */
 function translateStack(stack: Stack, v: Vector) {
-  if(stack.type === "Stack") {
+  if(!stack.isSpacer) {
     stack.rect = translate(stack.rect, v);
   }
 }
@@ -43,7 +41,7 @@ function translateStack(stack: Stack, v: Vector) {
  * @param padding The amount of padding to apply.
  */
 function wrapStack(stack: Stack, uid: number, padding: number) {
-  if(stack.type === "Spacer") {
+  if(stack.isSpacer) {
     return;
   }
 
@@ -117,7 +115,7 @@ function leadingRect(a: Rect, b: Rect): number {
  * falls below `a`.
  */
 function leadingStack(a: Stack, b: Stack): number {
-  if(a.type !== "Stack" || b.type !== "Stack") {
+  if(a.isSpacer || b.isSpacer) {
     return 0;
   }
 
@@ -305,30 +303,15 @@ function extendV(a: L1p, b: L1p) {
  *
  * @param r The rectangle from which to produce a new layout.
  * @param text The text underlying this rectangle.
+ * @param isSpacer Does the rectangle represent a spacer?
  * @returns A new layout consisting only of the rectangle `r`.
  */
-function layoutFromRect(r: Rect, text: string): L1p {
+function layoutFromRect(r: Rect, text: string, isSpacer: boolean): L1p {
   return [
     {
-      region: [{ type: "Stack", cells: [], rect: r, text }],
+      region: [{ type: "Stack", cells: [], rect: r, text, isSpacer }],
       origin: { x: 0, y: 0 },
       advance: { dx: width(r), dy: 0 }
-    }
-  ];
-}
-
-/**
- * Produce a new layout from a spacer.
- *
- * @param w The width of the spacer.
- * @returns A new layout consisting only of a spacer with width `w`.
- */
-function layoutFromSpacer(w: number): L1p {
-  return [
-    {
-      region: [{ type: "Spacer", width: w }],
-      origin: { x: 0, y: 0 },
-      advance: { dx: w, dy: 0 }
     }
   ];
 }
@@ -385,7 +368,7 @@ class PebbleLayoutResult<D> extends Render implements FragmentsInfo<D> {
    * representing the color of each `Rect`.
    */
   private rectsOfStack(s: Stack, includeBase?: boolean): [Rect, string][] {
-    if(s.type === "Spacer") {
+    if(s.isSpacer) {
       return [];
     }
 
@@ -427,7 +410,7 @@ class PebbleLayoutResult<D> extends Render implements FragmentsInfo<D> {
   boundingBox(): Rect | null {
     let bbox: Rect | null = null;
     for(const stack of this.allStacks()) {
-      if(stack.type === "Spacer") {
+      if(stack.isSpacer) {
         continue;
       }
 
@@ -449,7 +432,7 @@ class PebbleLayoutResult<D> extends Render implements FragmentsInfo<D> {
 
     for(let lineNo = 0; lineNo < this.layout.length; ++lineNo) {
       for(const stk of this.layout[lineNo].region) {
-        if(stk.type === "Spacer") {
+        if(stk.isSpacer) {
           continue;
         }
 
@@ -491,14 +474,15 @@ export default class PebbleLayout<D> implements alt.Layout<D> {
       };
     })();
 
-    const empty: rlt.LayoutTree<D, rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
+    const empty: rlt.LayoutTree<D, rlt.WithMeasurements> = { type: "Atom", text: "", isSpacer: true, rect: { left: 0, right: 0, top: 0, bottom: 0 } };
     const rlt: rlt.LayoutTree<D, rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
     const uidToColor: Map<number, string> = new Map();
 
     const go = (root: rlt.LayoutTree<D, rlt.WithMeasurements>): L1p => {
       switch(root.type) {
-        case "Atom": return layoutFromRect(root.rect, root.text);
-        case "Spacer": return layoutFromSpacer(root.width);
+        case "Atom": {
+          return layoutFromRect(root.rect, root.text, root.isSpacer);
+        }
         case "JoinH": {
           const layout = go(root.lhs);
           extendH(layout, go(root.rhs));

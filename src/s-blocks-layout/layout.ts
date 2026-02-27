@@ -64,7 +64,6 @@ function extentsOverlap(a: Extent, b: Extent): boolean {
  */
 type WithFragmentRanges<A = {}> = {
   Atom:    { index: number, lineNo: number };
-  Spacer:  { index: number, lineNo: number };
   Newline: object;
   Node:    { fragmentRange: Range, lineRange: Range, uid: number };
 } & A;
@@ -75,7 +74,7 @@ type HGadget = {
   width: number;
 };
 
-type FragmentContent = { type: "Atom", rect: Rect } | { type: "Spacer", width: number };
+type FragmentContent = { type: "Atom", rect: Rect, isSpacer: boolean };
 
 type Fragment = {
   /**
@@ -196,19 +195,14 @@ function buildFragmentVector<D>(layoutTree: LayoutTree<D, WithMeasurements>): La
       }
       case "Atom": {
         const index = fragmentVector.length;
+        const content: FragmentContent = {
+          type: "Atom",
+          rect: clone(root.rect),
+          isSpacer: root.isSpacer
+        };
         fragmentVector.push({
           gadgetsBefore: [],
-          content: { type: "Atom", rect: clone(root.rect) },
-          gadgetsAfter: [],
-          lineNo,
-        });
-        return { ...root, index, lineNo };
-      }
-      case "Spacer": {
-        const index = fragmentVector.length;
-        fragmentVector.push({
-          gadgetsBefore: [],
-          content: { type: "Spacer", width: root.width },
+          content,
           gadgetsAfter: [],
           lineNo,
         });
@@ -240,7 +234,8 @@ function buildFragmentVector<D>(layoutTree: LayoutTree<D, WithMeasurements>): La
             || thisFragment.lineNo !== nextFragment.lineNo;
 
           if(insertAtBeginning !== null
-            && (thisFragment.content.type === "Atom" || isLastFragmentOnLine)) {
+            && ((thisFragment.content.type === "Atom"
+              && !thisFragment.content.isSpacer) || isLastFragmentOnLine)) {
 
             insertBeginHGadget(i, insertAtBeginning);
             insertAtBeginning = null;
@@ -352,7 +347,6 @@ type DrawCommand = HorzLineDrawCommand | CloseDrawCommand | NopDrawCommand;
 
 type WithDrawCommands<A = {}> = {
   Atom:    object;
-  Spacer:  object;
   Newline: object;
   Node:    { drawCommands: DrawCommand[] };
 } & A;
@@ -594,7 +588,6 @@ function resolveWidths<D, A>(
     switch(root.type) {
       case "Newline": return root;
       case "Atom": return root;
-      case "Spacer": return root;
       case "Node": {
         const children = root.children.map(go);
 
@@ -855,13 +848,11 @@ function resolveHeights<D>(
       case "Newline": return root;
       case "Atom": {
         const frag = layoutGuts.fragmentVector[root.index].content;
-        assert(frag.type === "Atom");
         return {
           ...root,
           rect: frag.rect
         };
       }
-      case "Spacer": return root;
       case "Node": {
         const children = root.children.map(go);
         const outline = interpretDrawCommands(root.drawCommands);
@@ -889,8 +880,7 @@ class SBlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
     const go = (root: LayoutTree<D, WithMeasurements<WithOutlines>>) => {
       switch(root.type) {
         case "Newline":
-        case "Atom":
-        case "Spacer": break;
+        case "Atom": break;
         case "Node": {
           const r = new PolygonRendering(root.outline).withStyles({
             fill: "none",
@@ -911,8 +901,7 @@ class SBlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
   boundingBox(): Rect | null {
     switch(this.layoutTree.type) {
       case "Newline": return null;
-      case "Atom": return clone(this.layoutTree.rect);
-      case "Spacer": return null;
+      case "Atom": return this.layoutTree.isSpacer ? null : clone(this.layoutTree.rect);
       case "Node": return new PolygonRendering(this.layoutTree.outline).boundingBox();
     }
   }

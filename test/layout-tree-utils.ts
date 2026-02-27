@@ -6,11 +6,11 @@ export function rect(w: number, h: number) {
 }
 
 export function atom(w: number, h: number): LayoutTree<void, WithMeasurements> {
-  return { type: "Atom", rect: rect(w, h), text: "" };
+  return { type: "Atom", rect: rect(w, h), text: "", isSpacer: false };
 }
 
 export function spacer(w: number): LayoutTree<void, WithMeasurements> {
-  return { type: "Spacer", width: w, text: "" };
+  return { type: "Atom", rect: { left: 0, right: w, top: 0, bottom: 0 }, text: "", isSpacer: true };
 }
 
 export function newline(): LayoutTree<void, WithMeasurements> {

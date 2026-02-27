@@ -53,6 +53,7 @@ onmessage = async (e: MessageEvent<WorkerMsg>) => {
       postMessage(msg);
 
     } catch(e) {
+      console.error(e);
       if(e instanceof Error) {
         const msg: WorkerReponse = {
           status: "failure",

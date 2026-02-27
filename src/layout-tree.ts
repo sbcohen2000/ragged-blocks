@@ -11,7 +11,6 @@ import { DEFAULT_BORDER_STYLE, DEFAULT_STYLE, Svg, Render, SVGStyle } from "./re
 export interface Ann {
   Newline: object;
   Atom: object;
-  Spacer: object;
   Node: object;
 }
 
@@ -24,12 +23,8 @@ export type Atom<D, X extends Ann = Ann> = {
   text: string;
   pinId?: string;
   userData?: D;
+  isSpacer: boolean;
 } & X["Atom"];
-
-export type Spacer<X extends Ann = Ann> = {
-  type: "Spacer";
-  text: string;
-} & X["Spacer"];
 
 export type Node<D, X extends Ann = Ann> = {
   type: "Node";
@@ -39,25 +34,22 @@ export type Node<D, X extends Ann = Ann> = {
   children: LayoutTree<D, X>[];
 } & X["Node"];
 
-export type LayoutTree<D, X extends Ann = Ann> = Newline<X> | Atom<D, X> | Spacer<X> | Node<D, X>;
+export type LayoutTree<D, X extends Ann = Ann> = Newline<X> | Atom<D, X> | Node<D, X>;
 
 export type WithStyleRefs<A = {}> = {
   Atom:    object;
-  Spacer:  object;
   Newline: object;
   Node:    { styleRef?: string };
 } & A;
 
 export type WithMeasurements<A = {}> = {
   Atom:    { rect: Rect };
-  Spacer:  { width: number };
   Newline: object;
   Node:    object;
 } & A;
 
 export type WithOutlines<A = {}> = {
   Atom:    object;
-  Spacer:  object;
   Newline: object;
   Node:    { outline: Polygon };
 } & A;
@@ -74,7 +66,7 @@ export interface Layout<D> {
  * Information about a positioned fragment.
  */
 export type FragmentInfo<D> = {
-  type: "Atom";
+  type: "Atom" | "Spacer";
   text: string;
   rect: Rect;
   lineNo: number;
@@ -123,13 +115,6 @@ export function measureLayoutTree<D>(tree: LayoutTree<D>, measure: (text: string
         rect
       }
     };
-    case "Spacer": {
-      const w = width(measure(tree.text));
-      return {
-        ...tree,
-        width: w
-      }
-    };
     case "Node": {
       return {
         ...tree,
@@ -163,7 +148,6 @@ export function randomizeFillColors<D>(tree: LayoutTree<D>) {
     switch(root.type) {
       case "Newline": break;
       case "Atom": break;
-      case "Spacer": break;
       case "Node": {
         if(!root.sty) {
           root.sty = { ...DEFAULT_STYLE };
@@ -189,7 +173,6 @@ export function removePadding<D, A extends Ann>(tree: LayoutTree<D, A>) {
     switch(root.type) {
       case "Newline": break;
       case "Atom": break;
-      case "Spacer": break;
       case "Node": {
         root.padding = 0;
         root.children.forEach(go);
@@ -202,7 +185,6 @@ export function removePadding<D, A extends Ann>(tree: LayoutTree<D, A>) {
 
 export type WithStyles<A = {}> = {
   Atom:    { sty: Partial<SVGStyle> };
-  Spacer:  object;
   Newline: object;
   Node:    object;
 } & A;

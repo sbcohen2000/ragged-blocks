@@ -9,7 +9,6 @@ export type WithRegions<A = {}> = {
   JoinH:  { region: Region };
   JoinV:  { region: Region };
   Atom:   { stackRef: StackRef };
-  Spacer: { stackRef: StackRef };
   Wrap:   { region: Region, uid: number };
 } & A;
 
@@ -24,7 +23,6 @@ export function regionOfLayoutTree<D>(layoutTree: LayoutTree<D, WithRegions>): R
     case "Wrap":
     case "JoinV":
     case "JoinH": return layoutTree.region;
-    case "Spacer":
     case "Atom": return regionFromStackRef(layoutTree.stackRef);
   }
 }
@@ -137,14 +135,9 @@ export class Timetable {
 
     const go = (root: LayoutTree<D, A>): [number, LayoutTree<D, WithRegions<A>>] => {
       switch(root.type) {
-        case "Spacer": {
-          const index = columns.length;
-          columns.push(null);
-          return [0, { ...root, stackRef: { depth: 0, index } }];
-        }
         case "Atom": {
           const index = columns.length;
-          columns.push([BASE_CELL]);
+          columns.push(root.isSpacer ? null : [BASE_CELL]);
           return [0, { ...root, stackRef: { depth: 0, index } }];
         }
         case "JoinH":

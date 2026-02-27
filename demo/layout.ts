@@ -164,6 +164,7 @@ export default async function layout(
 
         resolve({ status: "done", algoName, svgSrc, duration });
       } catch(e) {
+        console.error(e);
         if(e instanceof Error) {
           reject(e);
         } else {

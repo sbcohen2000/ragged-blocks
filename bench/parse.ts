@@ -71,7 +71,7 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
         out.push({ type: "Newline" });
       }
       if(end.column > 0 && theSettings.useSpacers) {
-        out.push({ type: "Spacer", text: nSpaces(end.column, "_") });
+        out.push({ type: "Atom", text: nSpaces(end.column, "_"), isSpacer: true });
       }
       return out;
     }
@@ -88,8 +88,9 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
     let ws = text.slice(0, i);
     if(ws && theSettings.useSpacers) {
       out.push({
-        type: "Spacer",
-        text: ws
+        type: "Atom",
+        text: ws,
+        isSpacer: true
       });
     }
 
@@ -157,7 +158,6 @@ export function stringifyLayoutTree(layoutTree: rb.LayoutTree<void>): string {
   switch(layoutTree.type) {
     case "Newline": return "\n";
     case "Atom": return layoutTree.text;
-    case "Spacer": return layoutTree.text;
     case "Node": {
       const strings = layoutTree.children.map(stringifyLayoutTree);
       return strings.join("");

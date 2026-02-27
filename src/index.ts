@@ -78,7 +78,7 @@ export function constructAlgoByName<A extends AlgorithmName, D>(name: A, setting
  */
 export function reassocLayoutTree<D, A extends alt.Ann>(
   lt: alt.LayoutTree<D, A>,
-): rlt.LayoutTree<D, rlt.WithAtomAndSpacerOf<A>> {
-  const empty: alt.LayoutTree<D, A> = { type: "Spacer", width: 0, text: "" };
+): rlt.LayoutTree<D, rlt.WithAtomOf<A>> {
+  const empty: rlt.Atom<D, rlt.WithAtomOf<A>> = { type: "Atom", text: "", isSpacer: true } as rlt.Atom<D, rlt.WithAtomOf<A>>;
   return internalReassocLayoutTree(lt, empty);
 }

@@ -22,7 +22,7 @@ const pText: Parsimmon.Parser<string> =
 
 const pSpaceAtom: Parsimmon.Parser<LayoutTree<void>> =
       Parsimmon.string(" ").atLeast(1).map(s => {
-        const atom: LayoutTree<void> = { type: "Atom", text: s.join("") };
+        const atom: LayoutTree<void> = { type: "Atom", text: s.join(""), isSpacer: false };
         return atom;
       });
 
@@ -31,7 +31,7 @@ const pAtom: Parsimmon.Parser<LayoutTree<void>> =
         Parsimmon.regexp(/[a-zA-Z0-9]+#/).atMost(1),
         pText
       ).map(([maybePin, text]) => {
-        const atom: LayoutTree<void> = { type: "Atom", text };
+        const atom: LayoutTree<void> = { type: "Atom", text, isSpacer: false };
         if(maybePin.length === 1) {
           atom.pinId = maybePin[0];
         }
@@ -46,7 +46,7 @@ const pNewline: Parsimmon.Parser<LayoutTree<void>[]> =
         if(ws.length === 0) {
           return [{ type: "Newline" }]
         } else {
-          return [{ type: "Newline" }, { type: "Spacer", text: ws }]
+          return [{ type: "Newline" }, { type: "Atom", text: ws, isSpacer: true }]
         }
       });
 
@@ -268,7 +268,6 @@ function resolveStyleReferences(
   switch(root.type) {
     case "Newline": break;
     case "Atom": break;
-    case "Spacer": break;
     case "Node": {
       if(root.styleRef !== undefined) {
         const styles = sty.get(root.styleRef);
