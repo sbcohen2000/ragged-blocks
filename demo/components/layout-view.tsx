@@ -4,6 +4,7 @@ import * as styles from "./layout-view.module.css";
 import Dropdown from "./dropdown-component";
 import Button from "./button-component";
 import LabeledCheckbox from "./labeled-checkbox-component";
+import LabeledNumberPicker from "./labeled-number-picker-component";
 import layout, { LayoutResult, RenderSettings } from "../layout";
 import {
   faGear,
@@ -48,13 +49,13 @@ function describeDuration(duration: number): string {
 
 function settingRelevantForAlgo(key: string, algoName: rb.AlgorithmName): boolean {
   switch(algoName) {
-    case "S-Blocks":
     case "Blocks": return false;
-    case "L1P": return ["translateWraps"].indexOf(key) >= 0;
+    case "S-Blocks": return ["idealLeading"].indexOf(key) >= 0;
+    case "L1P": return ["idealLeading", "translateWraps"].indexOf(key) >= 0;
     case "L1S":
     case "L1S+":
     case "L2AS":
-    case "L2AS+": return ["translateWraps", "enableSimplification"].indexOf(key) >= 0;
+    case "L2AS+": return ["idealLeading", "translateWraps", "enableSimplification"].indexOf(key) >= 0;
   }
 }
 
@@ -62,6 +63,7 @@ function descriptionOfSetting(key: string): string {
   switch(key) {
     case "translateWraps": return "Translate wraps";
     case "enableSimplification": return "Enable simplification";
+    case "idealLeading": return "Leading";
     default:
       return key;
   }
@@ -164,7 +166,6 @@ export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutView
     document.body.removeChild(dlLink);
   }
 
-console.log("---------------------------------");
   return (
     <div className={styles.layoutContainer} key={props.algoName}>
       <div className={styles.upperHalf}>
@@ -211,8 +212,10 @@ console.log("---------------------------------");
         }/>
         {
           Object.entries(layoutSettings).flatMap(([key, value]) => {
-              if(settingRelevantForAlgo(key, props.algoName) && typeof(value) === "boolean") {
-console.log(key);
+              if(!settingRelevantForAlgo(key, props.algoName)) {
+                return [];
+              }
+              if(typeof(value) === "boolean") {
                 return (
                   <div key={key}>
                     <LabeledCheckbox
@@ -228,9 +231,27 @@ console.log(key);
                     />
                   </div>
                 );
-              } else {
-                return [];
               }
+              if(typeof(value) === "number") {
+                return (
+                  <div key={key}>
+                    <LabeledNumberPicker
+                      label={descriptionOfSetting(key)}
+                      value={value}
+                      min={0}
+                      initialPlace={-1}
+                      onChange={(n) => {
+                        setLayoutSettings(settings => {
+                          const newSettings = { ...settings };
+                          (newSettings[key as keyof rb.AnySettings] as number) = n;
+                          return newSettings;
+                        });
+                      }}
+                    />
+                  </div>
+                );
+              }
+              return [];
             })
         }
       </Dropdown>
