@@ -118,6 +118,9 @@ const pColor: Parsimmon.Parser<string> =
         pName
       ).skip(Parsimmon.optWhitespace);
 
+const pFontStyle: Parsimmon.Parser<"normal" | "italic"> =
+      Parsimmon.alt(pKeyword("normal"), pKeyword("italic"));
+
 function pKeyValuePair<A, B>(k: Parsimmon.Parser<A>, v: Parsimmon.Parser<B>): Parsimmon.Parser<[A, B]> {
   return Parsimmon.seq(
     k.skip(pKeyword(":")),
@@ -217,6 +220,7 @@ const pStyleAttr: Parsimmon.Parser<Style> =
         pKeyValuePair(pKeyword("fill"), pColor).map(mkStyle),
         pKeyValuePair(pKeyword("stroke"), pColor).map(mkStyle),
         pKeyValuePair(pKeyword("color"), pColor).map(mkStyle),
+        pKeyValuePair(pKeyword("font-style"), pFontStyle).map(([_, v]) => ({ fontStyle: v })),
         pBorderSpec.map(v => ({ borders: [v] }))
       )
 

@@ -63,7 +63,8 @@ export default function Root() {
   const measure = react.useCallback((text: string, userData: UserData | undefined) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d")!;
-    ctx.font = "12px Inconsolata-Medium";
+    const italic = userData?.sty.fontStyle === "italic" ? "italic " : "";
+    ctx.font = `${italic}12px Inconsolata-Medium`;
     const metrics = ctx.measureText(text);
 
     // Remember the baseline offset for rendering.

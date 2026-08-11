@@ -136,6 +136,9 @@ export default async function layout(
               text.fontSize("12px");
               if(frag.userData) {
                 text.fill(frag.userData.sty.color);
+                if(frag.userData.sty.fontStyle) {
+                  text.fontStyle(frag.userData.sty.fontStyle);
+                }
               }
               text.move(frag.rect.left, frag.rect.top + (frag.userData?.textBaselineOffset ?? 0));
             }

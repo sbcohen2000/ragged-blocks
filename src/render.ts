@@ -65,6 +65,10 @@ export type SVGStyle = {
    * The color of (non-border) strokes (i.e. line segments).
    */
   stroke: string;
+  /**
+   * The style of text (upright or italic).
+   */
+  fontStyle: "normal" | "italic";
 };
 
 export const DEFAULT_STYLE: SVGStyle = {
@@ -72,6 +76,7 @@ export const DEFAULT_STYLE: SVGStyle = {
   fill: "white",
   stroke: "black",
   borders: [],
+  fontStyle: "normal",
 }
 
 export abstract class Render {
@@ -221,6 +226,7 @@ type SVGTextElement = {
   y: number;
   fontFamily?: string;
   fontSize?: string;
+  fontStyle?: string;
 } & SVGFillAndStroke;
 
 type SVGRectElement = {
@@ -272,7 +278,7 @@ function buildElement(elt: SVGElement): string {
     case "text": {
       let out = `<text x=\"${elt.x}\" y=\"${elt.y}\"`;
 
-      if(elt.fontFamily || elt.fontSize) {
+      if(elt.fontFamily || elt.fontSize || elt.fontStyle) {
         out += " style=\"";
         if(elt.fontFamily) {
           out += `font-family:${elt.fontFamily};`;
@@ -280,6 +286,10 @@ function buildElement(elt: SVGElement): string {
 
         if(elt.fontSize) {
           out += ` font-size:${elt.fontSize};`;
+        }
+
+        if(elt.fontStyle) {
+          out += ` font-style:${elt.fontStyle};`;
         }
         out += "\"";
       }
@@ -455,6 +465,11 @@ class SvgTextBuilder extends FillAndStrokeBuilder {
 
   fontSize(size: string) {
     this.it.fontSize = size;
+    return this;
+  }
+
+  fontStyle(style: string) {
+    this.it.fontStyle = style;
     return this;
   }
 }
