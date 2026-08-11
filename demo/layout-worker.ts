@@ -1,25 +1,29 @@
 import * as rb from "ragged-blocks";
+import { UserData } from "./layout-user-data";
 import { WorkerMsg, WorkerReponse } from "./layout-worker-message";
 
-onmessage = async (e: MessageEvent<WorkerMsg<any>>) => {
+onmessage = async (e: MessageEvent<WorkerMsg>) => {
   const data = e.data;
 
   if(data.type === "begin") {
     try {
       const beginTime = performance.now();
 
-      const atomsIter = rb.eachAtomWithInheritedStyles(data.layoutTree);
-      const algo = rb.constructAlgoByName(data.algoName, data.algoSettings);
+      const algo: rb.Algorithm<UserData> = rb.constructAlgoByName(data.algoName, data.algoSettings);
       const layoutResult = await algo.layout(data.layoutTree);
       const text = new (class extends rb.Render {
         render(svg: rb.Svg, _sty: rb.SVGStyle) {
           for(const frag of layoutResult.fragmentsInfo()) {
-            const atom = atomsIter.next().value as rb.Atom<rb.WithMeasurements<rb.WithStyles>>;
             const text = svg.text(frag.text);
             text.fontFamily("Inconsolata-Medium");
             text.fontSize("12px");
-            text.fill(atom.sty.color);
-            text.move(frag.rect.left, frag.rect.top - atom.rect.top);
+            if(frag.userData) {
+              text.fill(frag.userData.sty.color);
+              if(frag.userData.sty.fontStyle) {
+                text.fontStyle(frag.userData.sty.fontStyle);
+              }
+            }
+            text.move(frag.rect.left, frag.rect.top + (frag.userData?.textBaselineOffset ?? 0));
           }
         }
 
@@ -53,6 +57,7 @@ onmessage = async (e: MessageEvent<WorkerMsg<any>>) => {
       postMessage(msg);
 
     } catch(e) {
+      console.error(e);
       if(e instanceof Error) {
         const msg: WorkerReponse = {
           status: "failure",

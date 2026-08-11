@@ -1,25 +1,25 @@
 import { expect, test } from "@jest/globals";
-import { LayoutTree, JoinV, JoinH, Wrap, Atom, Spacer } from "../../src/reassoc/layout-tree";
+import { LayoutTree, JoinV, JoinH, Wrap, Atom } from "../../src/reassoc/layout-tree";
 import { Timetable } from "../../src/rocks-layout/timetable";
 
-function joinv(lhs: LayoutTree, rhs: LayoutTree): JoinV {
+function joinv(lhs: LayoutTree<void>, rhs: LayoutTree<void>): JoinV<void> {
   return { type: "JoinV", lhs, rhs };
 }
 
-function joinh(lhs: LayoutTree, rhs: LayoutTree): JoinH {
+function joinh(lhs: LayoutTree<void>, rhs: LayoutTree<void>): JoinH<void> {
   return { type: "JoinH", lhs, rhs };
 }
 
-function wrap(child: LayoutTree): Wrap {
+function wrap(child: LayoutTree<void>): Wrap<void> {
   return { type: "Wrap", child, padding: 4 };
 }
 
-function atom(): Atom {
-  return { type: "Atom", text: "" };
+function atom(): Atom<void> {
+  return { type: "Atom", text: "", isSpacer: false };
 }
 
-function spacer(): Spacer {
-  return { type: "Spacer", text: "" };
+function spacer(): Atom<void> {
+  return { type: "Atom", text: "", isSpacer: true };
 }
 
 test("Can get spaceBetween two unwrapped rectangles.", () => {

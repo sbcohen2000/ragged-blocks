@@ -7,13 +7,12 @@ import {
   LayoutTree,
   WithMeasurements,
   WithOutlines,
-  Ann,
-  eachAtomWithInheritedStyles
+  Ann
 } from "../layout-tree";
 import { Polygon, PolygonRendering } from "../polygon";
 import { Rect, clone, width, height, translate } from "../rect";
 import { Svg, Render, SVGStyle } from "../render";
-import { ViewSettings, SettingView } from "../settings";
+import { LayoutSettings } from "../settings";
 
 /**
  * A range of indices.
@@ -63,8 +62,7 @@ function extentsOverlap(a: Extent, b: Extent): boolean {
  * below it.
  */
 type WithFragmentRanges<A = {}> = {
-  Atom:    { index: number, line: number };
-  Spacer:  { index: number, line: number };
+  Atom:    { index: number, lineNo: number };
   Newline: object;
   Node:    { fragmentRange: Range, lineRange: Range, uid: number };
 } & A;
@@ -75,7 +73,7 @@ type HGadget = {
   width: number;
 };
 
-type FragmentContent = { type: "Atom", rect: Rect } | { type: "Spacer", width: number };
+type FragmentContent = { type: "Atom", rect: Rect, isSpacer: boolean };
 
 type Fragment = {
   /**
@@ -92,7 +90,7 @@ type Fragment = {
   /**
    * The line number of the fragment.
    */
-  line: number;
+  lineNo: number;
 };
 
 /**
@@ -109,8 +107,8 @@ function hasHGadgetWithUID(uid: number, gadgets: HGadget[]): boolean {
 
 type FragmentVector = Fragment[];
 
-type LayoutGuts<A extends Ann> = {
-  layoutTree: LayoutTree<A>,
+type LayoutGuts<D, A extends Ann> = {
+  layoutTree: LayoutTree<D, A>,
   fragmentVector: FragmentVector,
   lineToFragmentRange: Range[],
 };
@@ -125,7 +123,7 @@ type LayoutGuts<A extends Ann> = {
  * has been annotated with H-Gadgets, and a mapping from line numbers
  * to fragment ranges.
  */
-function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGuts<WithMeasurements<WithFragmentRanges>> {
+function buildFragmentVector<D>(layoutTree: LayoutTree<D, WithMeasurements>): LayoutGuts<D, WithMeasurements<WithFragmentRanges>> {
   /**
    * Produce a unique ID.
    */
@@ -139,7 +137,7 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
   /**
    * The current line number.
    */
-  let line = 0;
+  let lineNo = 0;
 
   const fragmentVector: FragmentVector = [];
 
@@ -183,7 +181,7 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
     }
   };
 
-  const go = (root: LayoutTree<WithMeasurements>): LayoutTree<WithMeasurements<WithFragmentRanges>> => {
+  const go = (root: LayoutTree<D, WithMeasurements>): LayoutTree<D, WithMeasurements<WithFragmentRanges>> => {
     switch(root.type) {
       case "Newline": {
         lineToFragmentRange[lineToFragmentRange.length - 1].end = fragmentVector.length;
@@ -191,37 +189,32 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
           begin: fragmentVector.length,
           end: fragmentVector.length // Note the +1 due to the below Spacer.
         });
-        line++;
+        lineNo++;
         return root;
       }
       case "Atom": {
         const index = fragmentVector.length;
+        const content: FragmentContent = {
+          type: "Atom",
+          rect: clone(root.rect),
+          isSpacer: root.isSpacer
+        };
         fragmentVector.push({
           gadgetsBefore: [],
-          content: { type: "Atom", rect: clone(root.rect) },
+          content,
           gadgetsAfter: [],
-          line,
+          lineNo,
         });
-        return { ...root, index, line };
-      }
-      case "Spacer": {
-        const index = fragmentVector.length;
-        fragmentVector.push({
-          gadgetsBefore: [],
-          content: { type: "Spacer", width: root.width },
-          gadgetsAfter: [],
-          line,
-        });
-        return { ...root, index, line };
+        return { ...root, index, lineNo };
       }
       case "Node": {
         const uid = nextUid();
-        const beginLine = line;
+        const beginLine = lineNo;
         const beginIndex = fragmentVector.length;
 
         const children = root.children.map(go);
 
-        const endLine = line + 1; // (exclusive)
+        const endLine = lineNo + 1; // (exclusive)
         const endIndex = fragmentVector.length;
 
         // Insert newline-induced H-Gadgets
@@ -237,10 +230,11 @@ function buildFragmentVector(layoutTree: LayoutTree<WithMeasurements>): LayoutGu
           const nextFragment = fragmentVector[i + 1];
 
           let isLastFragmentOnLine = nextFragment === undefined
-            || thisFragment.line !== nextFragment.line;
+            || thisFragment.lineNo !== nextFragment.lineNo;
 
           if(insertAtBeginning !== null
-            && (thisFragment.content.type === "Atom" || isLastFragmentOnLine)) {
+            && ((thisFragment.content.type === "Atom"
+              && !thisFragment.content.isSpacer) || isLastFragmentOnLine)) {
 
             insertBeginHGadget(i, insertAtBeginning);
             insertAtBeginning = null;
@@ -352,7 +346,6 @@ type DrawCommand = HorzLineDrawCommand | CloseDrawCommand | NopDrawCommand;
 
 type WithDrawCommands<A = {}> = {
   Atom:    object;
-  Spacer:  object;
   Newline: object;
   Node:    { drawCommands: DrawCommand[] };
 } & A;
@@ -379,7 +372,7 @@ type Leading = {
  * @param guts The layout guts.
  * @returns An iterator to the objects on `line`.
  */
-function* eachObjectOnLine(line: number, guts: LayoutGuts<WithFragmentRanges>): IterableIterator<FragmentContent | HGadget> {
+function* eachObjectOnLine<D>(line: number, guts: LayoutGuts<D, WithFragmentRanges>): IterableIterator<FragmentContent | HGadget> {
   const range = guts.lineToFragmentRange[line];
   for(let i = range.begin; i < range.end; ++i) {
     const fragment = guts.fragmentVector[i];
@@ -411,7 +404,7 @@ function* eachObjectOnLine(line: number, guts: LayoutGuts<WithFragmentRanges>): 
  * @returns A `Range` object describing the S-Block's horizontal
  * extent on `line`, or `null` if the S-Block isn't on `line`.
  */
-function extentOnLine(line: number, uid: number, guts: LayoutGuts<WithFragmentRanges>): Extent | null {
+function extentOnLine<D>(line: number, uid: number, guts: LayoutGuts<D, WithFragmentRanges>): Extent | null {
   type State = { state: "LookingForBegin" } | { state: "FoundBegin"; extent: Extent };
   let state: State = { state: "LookingForBegin" };
   let x = 0;
@@ -471,7 +464,12 @@ function extentOnLine(line: number, uid: number, guts: LayoutGuts<WithFragmentRa
  * extent on that line. Returns `null` if the S-Block couldn't be
  * found anywhere between `minLine` and `maxLine`.
  */
-function extentBetweenLines(minLine: number, maxLine: number, uid: number, guts: LayoutGuts<WithFragmentRanges>): [number, Extent, number, Extent] | null {
+function extentBetweenLines<D>(
+  minLine: number,
+  maxLine: number,
+  uid: number,
+  guts: LayoutGuts<D, WithFragmentRanges>
+): [number, Extent, number, Extent] | null {
   while(minLine <= maxLine) {
     const upperExtent = extentOnLine(minLine, uid, guts);
     const lowerExtent = extentOnLine(maxLine, uid, guts);
@@ -506,7 +504,14 @@ function extentBetweenLines(minLine: number, maxLine: number, uid: number, guts:
  * @returns A DrawCommand that can be resolved to a line once we know
  * the absolute height of each line and leading.
  */
-function addVGadget(padding: number, lineNo: number, extent: Extent, side: "Above" | "Below", reversed: boolean, leading: Leading): DrawCommand {
+function addVGadget(
+  padding: number,
+  lineNo: number,
+  extent: Extent,
+  side: "Above" | "Below",
+  reversed: boolean,
+  leading: Leading
+): DrawCommand {
   if(extent[0] === extent[1]) {
     return nopCommand();
   }
@@ -549,7 +554,7 @@ function addVGadget(padding: number, lineNo: number, extent: Extent, side: "Abov
   }
 }
 
-type LayoutGutsWithLeading<A extends Ann> = LayoutGuts<A> & { leading: Leading };
+type LayoutGutsWithLeading<D, A extends Ann> = LayoutGuts<D, A> & { leading: Leading };
 
 /**
  * Resolve the absolute width and horizontal position of each object
@@ -562,7 +567,9 @@ type LayoutGutsWithLeading<A extends Ann> = LayoutGuts<A> & { leading: Leading }
  * @returns A new `LayoutGuts`, additionally annotated with
  * `DrawCommands`.
  */
-function resolveWidths<A>(layoutGuts: LayoutGuts<WithFragmentRanges<A>>): LayoutGutsWithLeading<WithFragmentRanges<WithDrawCommands<A>>> {
+function resolveWidths<D, A>(
+  layoutGuts: LayoutGuts<D, WithFragmentRanges<A>>
+): LayoutGutsWithLeading<D, WithFragmentRanges<WithDrawCommands<A>>> {
   /**
    * An array, one element per line. Each line has two interval trees;
    * a tree for the VGadgets above the line, and a tree for the
@@ -576,11 +583,10 @@ function resolveWidths<A>(layoutGuts: LayoutGuts<WithFragmentRanges<A>>): Layout
           belowLine: new IntervalTree()
         }));
 
-  const go = (root: LayoutTree<WithFragmentRanges<A>>): LayoutTree<WithFragmentRanges<WithDrawCommands<A>>> => {
+  const go = (root: LayoutTree<D, WithFragmentRanges<A>>): LayoutTree<D, WithFragmentRanges<WithDrawCommands<A>>> => {
     switch(root.type) {
       case "Newline": return root;
       case "Atom": return root;
-      case "Spacer": return root;
       case "Node": {
         const children = root.children.map(go);
 
@@ -750,7 +756,10 @@ type LineMetrics = {
   yBottom: number;
 };
 
-function resolveHeights(layoutGuts: LayoutGutsWithLeading<WithMeasurements<WithFragmentRanges<WithDrawCommands>>>, idealLeading: number): LayoutTree<WithMeasurements<WithFragmentRanges<WithOutlines>>> {
+function resolveHeights<D>(
+  layoutGuts: LayoutGutsWithLeading<D, WithMeasurements<WithFragmentRanges<WithDrawCommands>>>,
+  idealLeading: number
+): LayoutTree<D, WithMeasurements<WithFragmentRanges<WithOutlines>>> {
   let y = 0;
   /**
    * An array holding the `LineMetrics` of each line. There is one
@@ -833,18 +842,16 @@ function resolveHeights(layoutGuts: LayoutGutsWithLeading<WithMeasurements<WithF
   // to position each fragment and attach outlines to each `Node`.
 
   y = 0;
-  const go = (root: LayoutTree<WithMeasurements<WithFragmentRanges<WithDrawCommands>>>): LayoutTree<WithMeasurements<WithFragmentRanges<WithOutlines>>> => {
+  const go = (root: LayoutTree<D, WithMeasurements<WithFragmentRanges<WithDrawCommands>>>): LayoutTree<D, WithMeasurements<WithFragmentRanges<WithOutlines>>> => {
     switch(root.type) {
       case "Newline": return root;
       case "Atom": {
         const frag = layoutGuts.fragmentVector[root.index].content;
-        assert(frag.type === "Atom");
         return {
           ...root,
           rect: frag.rect
         };
       }
-      case "Spacer": return root;
       case "Node": {
         const children = root.children.map(go);
         const outline = interpretDrawCommands(root.drawCommands);
@@ -860,20 +867,19 @@ function resolveHeights(layoutGuts: LayoutGutsWithLeading<WithMeasurements<WithF
   return go(layoutGuts.layoutTree);
 }
 
-class SBlocksLayoutResult extends Render implements FragmentsInfo {
-  private layoutTree: LayoutTree<WithMeasurements<WithFragmentRanges<WithOutlines>>>;
+class SBlocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
+  private layoutTree: LayoutTree<D, WithMeasurements<WithFragmentRanges<WithOutlines>>>;
 
-  constructor(layoutTree: LayoutTree<WithMeasurements<WithFragmentRanges<WithOutlines>>>) {
+  constructor(layoutTree: LayoutTree<D, WithMeasurements<WithFragmentRanges<WithOutlines>>>) {
     super();
     this.layoutTree = layoutTree;
   }
 
   render(svg: Svg, sty: SVGStyle): void {
-    const go = (root: LayoutTree<WithMeasurements<WithOutlines>>) => {
+    const go = (root: LayoutTree<D, WithMeasurements<WithOutlines>>) => {
       switch(root.type) {
         case "Newline":
-        case "Atom":
-        case "Spacer": break;
+        case "Atom": break;
         case "Node": {
           const r = new PolygonRendering(root.outline).withStyles({
             fill: "none",
@@ -894,49 +900,45 @@ class SBlocksLayoutResult extends Render implements FragmentsInfo {
   boundingBox(): Rect | null {
     switch(this.layoutTree.type) {
       case "Newline": return null;
-      case "Atom": return clone(this.layoutTree.rect);
-      case "Spacer": return null;
+      case "Atom": return this.layoutTree.isSpacer ? null : clone(this.layoutTree.rect);
       case "Node": return new PolygonRendering(this.layoutTree.outline).boundingBox();
     }
   }
 
-  fragmentsInfo(): FragmentInfo[] {
-    let out: FragmentInfo[] = [];
-    for(const atom of eachAtomWithInheritedStyles(this.layoutTree)) {
-      out.push({
-        rect: atom.rect,
-        lineNo: atom.line,
-        text: atom.text
-      });
-    }
+  fragmentsInfo(): FragmentInfo<D>[] {
+    let out: FragmentInfo<D>[] = [];
+
+    const go = (root: LayoutTree<D, WithMeasurements<WithFragmentRanges>>) => {
+      switch(root.type) {
+        case "Newline": break;
+        case "Atom": out.push({ ...root }); break;
+        case "Node": root.children.forEach(go); break;
+      }
+    };
+    go(this.layoutTree);
+
     return out;
   }
 }
 
-export class SBlocksLayoutSettings implements ViewSettings {
-  public idealLeading: number;
-
-  constructor(idealLeading: number) {
-    this.idealLeading = idealLeading;
-  }
-
-  viewSettings(): SettingView[] {
-    return []
-  }
-
-  clone() {
-    return new SBlocksLayoutSettings(this.idealLeading);
-  }
+export interface SBlocksLayoutSettings extends LayoutSettings {
 }
 
-export default class SBlocksLayout implements Layout {
+export const defaultSBlocksLayoutSettings: SBlocksLayoutSettings = {
+  idealLeading: 0
+};
+
+export default class SBlocksLayout<D> implements Layout<D> {
   private settings: SBlocksLayoutSettings;
 
-  constructor(settings: SBlocksLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<SBlocksLayoutSettings>) {
+    this.settings = {
+      ...defaultSBlocksLayoutSettings,
+      ...settings
+    };
   }
 
-  async layout(layoutTree: LayoutTree<WithMeasurements>): Promise<SBlocksLayoutResult> {
+  async layout(layoutTree: LayoutTree<D, WithMeasurements>): Promise<SBlocksLayoutResult<D>> {
     const guts = buildFragmentVector(layoutTree);
     const gutsWLeading = resolveWidths(guts);
     const withOutlines = resolveHeights(gutsWLeading, this.settings.idealLeading);

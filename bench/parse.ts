@@ -42,7 +42,7 @@ const DEFAULT_PARSE_SETTINGS: ParseSettings = {
  * @param settings The parse settings.
  * @returns A new `LayoutTree`.
  */
-export function parse(src: string, language: any, settings: Partial<ParseSettings>): rb.LayoutTree<rb.WithText> {
+export function parse(src: string, language: any, settings: Partial<ParseSettings>): rb.LayoutTree<{}> {
   const theSettings: ParseSettings = { ...DEFAULT_PARSE_SETTINGS, ...settings };
 
   const parser = new Parser();
@@ -57,27 +57,37 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
   let cursor = ast.walk();
   let lastPosition: Point = cursor.startPosition;
 
-  const emitWhitespace = (begin: Point, end: Point): rb.LayoutTree<rb.WithText>[] => {
+  const emitWhitespace = (begin: Point, end: Point): rb.LayoutTree<{}>[] => {
     if(begin.row === end.row) {
       if(begin.column < end.column) {
-        return [{ type: "Atom", text: nSpaces(end.column - begin.column, " ") }];
+        return [{
+          type: "Atom",
+          text: nSpaces(end.column - begin.column, " "),
+          isSpacer: false,
+          userData: {}
+        }];
       } else {
         return [];
       }
     } else {
       const nLines = end.row - begin.row;
-      let out: rb.LayoutTree<rb.WithText>[] = [];
+      let out: rb.LayoutTree<{}>[] = [];
       for(let i = 0; i < nLines; ++i) {
         out.push({ type: "Newline" });
       }
       if(end.column > 0 && theSettings.useSpacers) {
-        out.push({ type: "Spacer", text: nSpaces(end.column, "_") });
+        out.push({
+          type: "Atom",
+          text: nSpaces(end.column, " "),
+          isSpacer: true,
+          userData: {}
+        });
       }
       return out;
     }
   };
 
-  const pushLine = (text: string, out: rb.LayoutTree<rb.WithText>[]) => {
+  const pushLine = (text: string, out: rb.LayoutTree<{}>[]) => {
     let i = 0;
     for(; i < text.length; ++i) {
       if(text[i] !== " ") {
@@ -88,21 +98,23 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
     let ws = text.slice(0, i);
     if(ws && theSettings.useSpacers) {
       out.push({
-        type: "Spacer",
-        text: ws
+        type: "Atom",
+        text: ws,
+        isSpacer: true
       });
     }
 
     if(i < text.length) {
       out.push({
         type: "Atom",
-        text: text.slice(i)
+        text: text.slice(i),
+        isSpacer: false
       });
     }
   };
 
-  const pushMultilineText = (text: string): rb.LayoutTree<rb.WithText>[] => {
-    let out: rb.LayoutTree<rb.WithText>[] = [];
+  const pushMultilineText = (text: string): rb.LayoutTree<{}>[] => {
+    let out: rb.LayoutTree<{}>[] = [];
     const lines = text.split("\n");
     for(let i = 0; i < lines.length - 1; ++i) {
       pushLine(lines[i], out);
@@ -112,11 +124,11 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
     return out;
   }
 
-  const go = (): rb.LayoutTree<rb.WithText>[] => {
+  const go = (): rb.LayoutTree<{}>[] => {
     const nodes = emitWhitespace(lastPosition, cursor.startPosition);
     lastPosition = cursor.startPosition;
 
-    let children: rb.LayoutTree<rb.WithText>[] = [];
+    let children: rb.LayoutTree<{}>[] = [];
     if(cursor.gotoFirstChild()) {
       do {
         children.push(...go());
@@ -128,7 +140,8 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
       nodes.push({
         type: "Node",
         children,
-        padding: 4
+        padding: 4,
+        userData: {}
       })
       return nodes;
     } else {
@@ -137,7 +150,9 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
       } else {
         nodes.push({
           type: "Atom",
-          text: cursor.nodeText
+          text: cursor.nodeText,
+          isSpacer: false,
+          userData: {}
         });
       }
       lastPosition = cursor.endPosition;
@@ -153,15 +168,13 @@ export function parse(src: string, language: any, settings: Partial<ParseSetting
  * Pretty print a layoutTree. This can be used to verify that the
  * parsing process doesn't loose any formatting information.
  */
-export function stringifyLayoutTree(layoutTree: rb.LayoutTree<rb.WithText>): string {
+export function stringifyLayoutTree(layoutTree: rb.LayoutTree<void>): string {
   switch(layoutTree.type) {
     case "Newline": return "\n";
     case "Atom": return layoutTree.text;
-    case "Spacer": return layoutTree.text;
     case "Node": {
       const strings = layoutTree.children.map(stringifyLayoutTree);
       return strings.join("");
     }
   }
 }
-

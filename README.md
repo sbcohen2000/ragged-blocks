@@ -55,3 +55,8 @@ The remaining dependencies are just needed for development:
 - **typescript** is the TypeScript language compiler.
 
 The demo program additionally depends on **webpack** and friends to generate a bundle.
+
+### TODO
+- [ ] Remove `text` property from `src/layout-tree.ts`'s `Atom` and `Spacer` and `src/reassoc/layout-tree'ts`'s `Atom` and `Spacer`.
+  - The `userData` property subsumes `text`. Furthermore, removing `text` in favor of an API which only assumes that `Atom` and `Spacer`s can be measured would allow for more interesting stuff to be placed at the leaves of the layout tree (such as widgets).
+  - I expect that `FragmentInfo` will need to be further enriched to return info about both `Atom`s and `Spacer`s.

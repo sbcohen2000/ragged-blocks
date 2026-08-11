@@ -19,7 +19,7 @@ type TestSpec = {
   /**
    * The input layout tree.
    */
-  layoutTree: LayoutTree<WithMeasurements>;
+  layoutTree: LayoutTree<void, WithMeasurements>;
   /**
    * An absolute path to the expectation image for this test.
    */
@@ -58,7 +58,7 @@ export default async function collectLayoutTests(testDir: string): Promise<TestS
     }
 
     if(mod["layoutTree"]) {
-      const layoutTree = mod["layoutTree"] as LayoutTree<WithMeasurements>;
+      const layoutTree = mod["layoutTree"] as LayoutTree<void, WithMeasurements>;
 
       const testName = path.basename(modPath, ".ts");
 

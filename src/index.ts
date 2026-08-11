@@ -1,3 +1,5 @@
+export * as polygon from "./polygon";
+export * as rlt from "./reassoc/layout-tree";
 export * from "./layout-tree";
 export * from "./rect";
 export * from "./render";
@@ -12,6 +14,9 @@ export { OutlinedRocksLayoutSettings, RocksLayoutSettings } from "./rocks-layout
 export { PebbleLayoutSettings } from "./pebble-layout/layout";
 export { SBlocksLayoutSettings } from "./s-blocks-layout/layout";
 
+import * as alt from "./layout-tree";
+import * as rlt from "./reassoc/layout-tree";
+import { default as internalReassocLayoutTree } from "./reassoc/reassoc-layout-tree";
 import BlocksLayout, { BlocksLayoutSettings } from "./blocks-layout/layout";
 import PebbleLayout, { PebbleLayoutSettings } from "./pebble-layout/layout";
 import SBlocksLayout, { SBlocksLayoutSettings } from "./s-blocks-layout/layout";
@@ -47,46 +52,33 @@ export function asAlgorithmName(str: string): AlgorithmName | undefined {
   }
 }
 
-export type Algorithm = PebbleLayout | RocksLayout | RocksLayoutWithPins | OutlinedRocksLayout | OutlinedRocksLayoutWithPins | BlocksLayout | SBlocksLayout;
+export type Algorithm<D> = PebbleLayout<D> | RocksLayout<D> | RocksLayoutWithPins<D> | OutlinedRocksLayout<D> | OutlinedRocksLayoutWithPins<D> | BlocksLayout<D> | SBlocksLayout<D>;
 
-/**
- * For a given `AlgorithmName`, get the type of the class which
- * implements the given layout algorithm.
- */
-export type AlgorithmOfName<A extends AlgorithmName> =
-    A extends "L1P"      ? PebbleLayout
-  : A extends "L1S"      ? RocksLayout
-  : A extends "L1S+"     ? OutlinedRocksLayout
-  : A extends "L2AS"     ? RocksLayoutWithPins
-  : A extends "L2AS+"    ? OutlinedRocksLayoutWithPins
-  : A extends "Blocks"   ? BlocksLayout
-  : A extends "S-Blocks" ? SBlocksLayout
-  : never;
+export type AnySettings = PebbleLayoutSettings & RocksLayoutSettings & OutlinedRocksLayoutSettings & BlocksLayoutSettings & SBlocksLayoutSettings;
 
-/**
- * For a given `Algorithm`, return the type of its `Settings`.
- */
-export type Settings<A extends AlgorithmName> =
-    A extends "L1P"      ? PebbleLayoutSettings
-  : A extends "L1S"      ? RocksLayoutSettings
-  : A extends "L2AS"     ? RocksLayoutSettings
-  : A extends "L1S+"     ? OutlinedRocksLayoutSettings
-  : A extends "Blocks"   ? BlocksLayoutSettings
-  : A extends "S-Blocks" ? SBlocksLayoutSettings
-  : never;
-
-export function constructAlgoByName<A extends AlgorithmName>(name: A, settings: Settings<A>): Algorithm {
+export function constructAlgoByName<A extends AlgorithmName, D>(name: A, settings: AnySettings): Algorithm<D> {
   switch(name) {
-    case "L1P": return new PebbleLayout(settings as Settings<"L1P">);
-    case "L1S": return new RocksLayout(settings as Settings<"L1S">);
-    case "L1S+": return new OutlinedRocksLayout(settings as Settings<"L1S+">);
-    case "L2AS": return new RocksLayoutWithPins(settings as Settings<"L2AS">);
-    case "L2AS+": return new OutlinedRocksLayoutWithPins(settings as Settings<"L2AS+">);
-    case "Blocks": return new BlocksLayout(settings as Settings<"Blocks">);
-    case "S-Blocks": return new SBlocksLayout(settings as Settings<"S-Blocks">);
+    case "L1P": return new PebbleLayout(settings);
+    case "L1S": return new RocksLayout(settings);
+    case "L1S+": return new OutlinedRocksLayout(settings);
+    case "L2AS": return new RocksLayoutWithPins(settings);
+    case "L2AS+": return new OutlinedRocksLayoutWithPins(settings);
+    case "Blocks": return new BlocksLayout(settings);
+    case "S-Blocks": return new SBlocksLayout(settings);
   }
 }
 
-export interface AlgorithmConstructor<A extends AlgorithmName> {
-  new (settings: Settings<A>): A;
+/**
+ * Convert an abstract layout tree into a rocks layout tree. You
+ * probably don't need this function. It's only used to count the true
+ * number of wrap nodes in a layout tree for benchmarking purposes.
+ *
+ * @param lt The input layout tree.
+ * @returns The specialized rocks layout tree.
+ */
+export function reassocLayoutTree<D, A extends alt.Ann>(
+  lt: alt.LayoutTree<D, A>,
+): rlt.LayoutTree<D, rlt.WithAtomOf<A>> {
+  const empty: rlt.Atom<D, rlt.WithAtomOf<A>> = { type: "Atom", text: "", isSpacer: true } as rlt.Atom<D, rlt.WithAtomOf<A>>;
+  return internalReassocLayoutTree(lt, empty);
 }

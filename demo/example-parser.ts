@@ -1,5 +1,6 @@
 import Parsimmon from "parsimmon";
 import { LayoutTree, Node, WithStyleRefs, SVGStyle, BorderStyle } from "ragged-blocks";
+import { UserData } from "./layout-user-data";
 
 /**
  * Produce a parser which parses an escape character, then the given
@@ -20,25 +21,25 @@ const pText: Parsimmon.Parser<string> =
         Parsimmon.noneOf("\n[]#@")
       ).atLeast(1).map(s => s.join(""));
 
-const pSpaceAtom: Parsimmon.Parser<LayoutTree> =
+const pSpaceAtom: Parsimmon.Parser<LayoutTree<void>> =
       Parsimmon.string(" ").atLeast(1).map(s => {
-        const atom: LayoutTree = { type: "Atom", text: s.join("") };
+        const atom: LayoutTree<void> = { type: "Atom", text: s.join(""), isSpacer: false };
         return atom;
       });
 
-const pAtom: Parsimmon.Parser<LayoutTree> =
+const pAtom: Parsimmon.Parser<LayoutTree<void>> =
       Parsimmon.seq(
         Parsimmon.regexp(/[a-zA-Z0-9]+#/).atMost(1),
         pText
       ).map(([maybePin, text]) => {
-        const atom: LayoutTree = { type: "Atom", text };
+        const atom: LayoutTree<void> = { type: "Atom", text, isSpacer: false };
         if(maybePin.length === 1) {
           atom.pinId = maybePin[0];
         }
         return atom;
       });
 
-const pNewline: Parsimmon.Parser<LayoutTree[]> =
+const pNewline: Parsimmon.Parser<LayoutTree<void>[]> =
       Parsimmon.seq(
         Parsimmon.lf,
         Parsimmon.regexp(/ */)
@@ -46,7 +47,7 @@ const pNewline: Parsimmon.Parser<LayoutTree[]> =
         if(ws.length === 0) {
           return [{ type: "Newline" }]
         } else {
-          return [{ type: "Newline" }, { type: "Spacer", text: ws }]
+          return [{ type: "Newline" }, { type: "Atom", text: ws, isSpacer: true }]
         }
       });
 
@@ -59,7 +60,7 @@ const pStyleReference: Parsimmon.Parser<string> =
         pName
       ).map(([_, nm]) => nm)
 
-const pNode: Parsimmon.Parser<LayoutTree<WithStyleRefs>> = Parsimmon.lazy(function () {
+const pNode: Parsimmon.Parser<LayoutTree<void, WithStyleRefs>> = Parsimmon.lazy(function () {
   return Parsimmon
     .seq(
       Parsimmon.string("["),
@@ -67,19 +68,19 @@ const pNode: Parsimmon.Parser<LayoutTree<WithStyleRefs>> = Parsimmon.lazy(functi
       Parsimmon.string("]"),
       pStyleReference.atMost(1)
     ).map(([_l, children, _r, styleRef]) => {
-      const node: Node<WithStyleRefs> = {
-        type: "Node",
-        children: children.flat(),
-        padding: 0,
-      };
-      if(styleRef.length === 1) {
-        node.styleRef = styleRef[0];
-      }
-      return node;
-    });
+    const node: Node<void, WithStyleRefs> = {
+      type: "Node",
+      children: children.flat(),
+      padding: 0,
+    };
+    if(styleRef.length === 1) {
+      node.styleRef = styleRef[0];
+    }
+    return node;
+  });
 });
 
-const pLayoutTree: Parsimmon.Parser<LayoutTree[]> = Parsimmon.lazy(function () {
+const pLayoutTree: Parsimmon.Parser<LayoutTree<void>[]> = Parsimmon.lazy(function () {
   return Parsimmon.alt(
     pNewline,
     pSpaceAtom.map((lt) => [lt]),
@@ -116,6 +117,9 @@ const pColor: Parsimmon.Parser<string> =
         pRGBAColor,
         pName
       ).skip(Parsimmon.optWhitespace);
+
+const pFontStyle: Parsimmon.Parser<"normal" | "italic"> =
+      Parsimmon.alt(pKeyword("normal"), pKeyword("italic"));
 
 function pKeyValuePair<A, B>(k: Parsimmon.Parser<A>, v: Parsimmon.Parser<B>): Parsimmon.Parser<[A, B]> {
   return Parsimmon.seq(
@@ -216,6 +220,7 @@ const pStyleAttr: Parsimmon.Parser<Style> =
         pKeyValuePair(pKeyword("fill"), pColor).map(mkStyle),
         pKeyValuePair(pKeyword("stroke"), pColor).map(mkStyle),
         pKeyValuePair(pKeyword("color"), pColor).map(mkStyle),
+        pKeyValuePair(pKeyword("font-style"), pFontStyle).map(([_, v]) => ({ fontStyle: v })),
         pBorderSpec.map(v => ({ borders: [v] }))
       )
 
@@ -240,7 +245,7 @@ const pStyleDefn: Parsimmon.Parser<[string, Style]> =
       ).map(([_, nm, sty]) => [nm, sty]);
 
 type Example = {
-  layoutTrees: LayoutTree<WithStyleRefs>[];
+  layoutTrees: LayoutTree<void, WithStyleRefs>[];
   styleDefs: [string, Style][];
 };
 
@@ -261,22 +266,27 @@ const pExample: Parsimmon.Parser<Example> =
  * @param root The `LayoutTree` to modify.
  * @param sty The environment of style references.
  */
-function resolveStyleReferences(root: LayoutTree<WithStyleRefs>, sty: Map<string, Style>) {
+function resolveStyleReferences(
+  root: LayoutTree<UserData, WithStyleRefs>,
+  sty: Map<string, Style>,
+  parentStyRef: string | undefined
+) {
   switch(root.type) {
     case "Newline": break;
-    case "Atom": break;
-    case "Spacer": break;
+    case "Atom": {
+      const styles = parentStyRef ? (sty.get(parentStyRef) ?? {}) : {};
+      root.userData = { sty: styles, textBaselineOffset: 0 };
+    } break;
     case "Node": {
       if(root.styleRef !== undefined) {
-        const styles = sty.get(root.styleRef);
-        if(styles) {
-          root.padding = styles.padding ?? 0;
-          root.sty = styles;
-        }
+        const styles = sty.get(root.styleRef) ?? {};
+        root.padding = styles.padding ?? 0;
+        root.sty = styles;
+        root.userData = { sty: styles, textBaselineOffset: 0 };
       }
 
-      root.children.forEach(child => resolveStyleReferences(child, sty));
-    }
+      root.children.forEach(child => resolveStyleReferences(child, sty, root.styleRef));
+    } break;
   }
 }
 
@@ -289,15 +299,15 @@ function resolveStyleReferences(root: LayoutTree<WithStyleRefs>, sty: Map<string
  * @returns A `LayoutTree` if the parse was successful, or a `string`
  * error message otherwise.
  */
-export default function parseExample(text: string): LayoutTree | string {
+export default function parseExample(text: string): LayoutTree<UserData> | string {
   const result = pExample.parse(text);
   if(result.status) {
-    const treeWithRefs: LayoutTree<WithStyleRefs> = {
+    const treeWithRefs: LayoutTree<UserData, WithStyleRefs> = {
       type: "Node",
       padding: 0,
-      children: result.value.layoutTrees
+      children: result.value.layoutTrees as LayoutTree<UserData, WithStyleRefs>[]
     };
-    resolveStyleReferences(treeWithRefs, new Map(result.value.styleDefs));
+    resolveStyleReferences(treeWithRefs, new Map(result.value.styleDefs), undefined);
     return treeWithRefs;
   } else {
     return Parsimmon.formatError(text, result);

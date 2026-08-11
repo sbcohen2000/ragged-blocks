@@ -12,6 +12,7 @@ import Tooltip from "./tooltip-component";
 import fontURL from "../Inconsolata-Medium.woff2";
 import parseExample from "../example-parser";
 import { EXAMPLE_PROGRAMS } from "../example-programs";
+import { UserData } from "../layout-user-data";
 
 type FontLoadStatus = {
   done: boolean;
@@ -59,11 +60,17 @@ export default function Root() {
     });
   }, []);
 
-  const measure = react.useCallback((text: string) => {
+  const measure = react.useCallback((text: string, userData: UserData | undefined) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d")!;
-    ctx.font = "12px Inconsolata-Medium";
+    const italic = userData?.sty.fontStyle === "italic" ? "italic " : "";
+    ctx.font = `${italic}12px Inconsolata-Medium`;
     const metrics = ctx.measureText(text);
+
+    // Remember the baseline offset for rendering.
+    if(userData) {
+      userData.textBaselineOffset = metrics.fontBoundingBoxAscent;
+    }
 
     return {
       left: 0,
@@ -73,7 +80,7 @@ export default function Root() {
     };
   }, [fontLoadStatus]);
 
-  const [layoutTree, setLayoutTree] = react.useState<rb.LayoutTree>(
+  const [layoutTree, setLayoutTree] = react.useState<rb.LayoutTree<UserData>>(
     // Initialize the layout tree with an empty node.
     { type: "Node", children: [], padding: 0 },
   );
@@ -193,7 +200,7 @@ export default function Root() {
     <div>
       <div className={styles.row}>
         <span className={styles.label}>View on <a href={"https://github.com/sbcohen2000/ragged-blocks"}>GitHub</a></span>
-        <span className={styles.label}>v1.1.0</span>
+        <span className={styles.label}>v1.2.0</span>
       </div>
       <div className={styles.sectionLine}></div>
       <Dropdown isOpen={aboutOpen} onChange={setAboutOpen} label={"About"}>

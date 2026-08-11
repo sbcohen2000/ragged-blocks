@@ -1,7 +1,7 @@
 import assert from "./assert";
 import { Point, subPoints } from "./point";
 import { Rect, expandToInclude, union, width, height } from "./rect";
-import { Svg, Render, SVGStyle, BorderStyle, DEFAULT_BORDER_STYLE } from "./render";
+import { toSVG, Svg, Render, SVGStyle, BorderStyle, DEFAULT_BORDER_STYLE } from "./render";
 import { cross } from "./vector";
 
 /**
@@ -174,6 +174,8 @@ export function eachRectiSegmentTriple<A>(
   }
 
   for(let i = path.length - 1; i >= 0; --i) {
+    // const b4 = clonePath(path);
+
     const l = path.length;
     const a = path[i];
     const b = path[(i + 1) % l];
@@ -205,6 +207,13 @@ export function eachRectiSegmentTriple<A>(
         }
       } break;
     }
+
+    // if(!checkPathOK(path)) {
+    //   console.log(
+    //     toSVG(new PolygonRendering([path]).withStyles({ fill: "rgba(200, 200, 100, 0.5)" })
+    //       .stack(new PolygonRendering([b4]).withStyles({ fill: "rgba(200, 100, 200, 0.5)" })))
+    //   );
+    // }
   }
 
   return null;
@@ -1321,4 +1330,17 @@ export class PolygonRendering extends Render {
 
     return bbox;
   }
+}
+
+export function checkPathOK(path: Path): boolean {
+  for(const seg of eachRectiSegment(path)) {
+    if(seg.begin === seg.end) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function checkPolygonOK(polygon: Polygon): boolean {
+  return polygon.every(checkPathOK);
 }

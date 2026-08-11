@@ -1,5 +1,5 @@
 import * as path from "path";
-import BlocksLayout, { BlocksLayoutSettings } from "../../src/blocks-layout/layout";
+import BlocksLayout from "../../src/blocks-layout/layout";
 import collectLayoutTests from "../collect-layout-tests";
 import diffSvgPng from "../diff-svg-png";
 import sharp from "sharp";
@@ -14,7 +14,7 @@ const testDir = __dirname;
 const tests = await collectLayoutTests(testDir);
 
 test.each(tests)("layout $testName", async ({testName, layoutTree, expectationPath, hasBaseline}) => {
-  const alg = new BlocksLayout(new BlocksLayoutSettings());
+  const alg = new BlocksLayout({});
   const l = await alg.layout(layoutTree);
   const svg = toSVG(l.stack(new FragmentBoundingBoxesRendering(l)), 0);
 

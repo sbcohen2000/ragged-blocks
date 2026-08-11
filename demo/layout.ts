@@ -1,4 +1,5 @@
 import * as rb from "ragged-blocks";
+import { UserData } from "./layout-user-data";
 import { WorkerMsg, WorkerReponse } from "./layout-worker-message";
 
 export type RenderSettings = {
@@ -37,10 +38,10 @@ function wait(time: number): Promise<void> {
   });
 }
 
-export default async function layout<A extends rb.AlgorithmName>(
-  layoutTree: rb.LayoutTree<rb.WithMeasurements>,
-  algoName: A,
-  algoSettings: rb.Settings<A>,
+export default async function layout(
+  layoutTree: rb.LayoutTree<UserData, rb.WithMeasurements>,
+  algoName: rb.AlgorithmName,
+  algoSettings: rb.AnySettings,
   renderSettings: RenderSettings,
   useWebWorkers?: boolean,
   abortSignal?: AbortSignal
@@ -50,7 +51,7 @@ export default async function layout<A extends rb.AlgorithmName>(
     // SVG.
     const worker = new Worker(new URL("layout-worker.ts", import.meta.url));
 
-    const msg: WorkerMsg<any> = {
+    const msg: WorkerMsg = {
       type: "begin",
       layoutTree,
       algoName,
@@ -125,18 +126,21 @@ export default async function layout<A extends rb.AlgorithmName>(
 
         const beginTime = performance.now();
 
-        const atomsIter = rb.eachAtomWithInheritedStyles(layoutTree);
-        const algo = rb.constructAlgoByName(algoName, algoSettings);
+        const algo: rb.Algorithm<UserData> = rb.constructAlgoByName(algoName, algoSettings);
         const layoutResult = await algo.layout(layoutTree);
         const text = new (class extends rb.Render {
           render(svg: rb.Svg, _sty: rb.SVGStyle) {
             for(const frag of layoutResult.fragmentsInfo()) {
-              const atom = atomsIter.next().value as rb.Atom<rb.WithMeasurements<rb.WithStyles>>;
               const text = svg.text(frag.text);
               text.fontFamily("Inconsolata-Medium");
               text.fontSize("12px");
-              text.fill(atom.sty.color);
-              text.move(frag.rect.left, frag.rect.top - atom.rect.top);
+              if(frag.userData) {
+                text.fill(frag.userData.sty.color);
+                if(frag.userData.sty.fontStyle) {
+                  text.fontStyle(frag.userData.sty.fontStyle);
+                }
+              }
+              text.move(frag.rect.left, frag.rect.top + (frag.userData?.textBaselineOffset ?? 0));
             }
           }
 
@@ -164,6 +168,7 @@ export default async function layout<A extends rb.AlgorithmName>(
 
         resolve({ status: "done", algoName, svgSrc, duration });
       } catch(e) {
+        console.error(e);
         if(e instanceof Error) {
           reject(e);
         } else {

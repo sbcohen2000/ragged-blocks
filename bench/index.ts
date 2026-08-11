@@ -7,8 +7,12 @@ import TypeScript from "tree-sitter-typescript";
 import fs from "node:fs";
 import { basename, extname } from "node:path";
 import { exit } from "node:process";
-import { parse, ParseSettings } from "ts-compat";
+import { parse, ParseSettings } from "./parse";
 import { program, Command, Argument, Option } from "commander";
+
+type UserData = {
+  textBaselineOffset: number;
+};
 
 /**
  * Produce a human readable string representing the given time in
@@ -172,17 +176,21 @@ function measureFallback(text: string): rb.Rect {
  * @param font A path to the font file to load.
  * @returns A measure function using `font`.
  */
-function mkMeasure(font: string): (text: string) => rb.Rect {
+function mkMeasure(font: string): (text: string, userData: UserData | undefined) => rb.Rect {
   const face = freetype.NewFace(font);
   face.setPixelSizes(12, 0);
   const ascend = face.properties().ascender / 64;
   const descend = face.properties().descender / 64;
 
-  return (text: string) => {
+  return (text: string, userData: UserData | undefined) => {
     let width = 0;
     for(let i = 0; i < text.length; ++i) {
       const glyph = face.loadChar(text.charCodeAt(i));
       width += glyph.metrics.horiAdvance / 64;
+    }
+
+    if(userData) {
+      userData.textBaselineOffset = ascend;
     }
 
     return {
@@ -203,46 +211,24 @@ type BenchResult = {
   vertMeshDistances: number[];
   meanLineWidth: number;
   nFragments: number;
+  nWraps: number;
   duration: number;
   basename: string;
   algoName: AlgorithmName;
   renderable: rb.Render;
 }
 
-function asAlgorithmName(str: string): AlgorithmName {
-  if(str === "Unstyled") {
-    return asAlgorithmName("L1P");
-  } else if(str === "BlocksNS") {
-    return asAlgorithmName("BlocksNS");
-  } else {
-    const nm = rb.asAlgorithmName(str);
-    if(nm === undefined) {
-      throw new Error(`Unknown layout algorithm (${str})`);
-    }
-    return nm;
-  }
-}
-
-function settingsOfAlgoName<A extends rb.AlgorithmName>(algoName: A): rb.Settings<A>;
-function settingsOfAlgoName<A extends rb.AlgorithmName>(algoName: A): any {
-  switch(algoName) {
-    case "L1P": return new rb.PebbleLayoutSettings(true, 20);
-    case "L1S": return new rb.RocksLayoutSettings(true, 20);
-    case "L1S+": return new rb.OutlinedRocksLayoutSettings(true, 20, true);
-    case "S-Blocks": return new rb.SBlocksLayoutSettings(20);
-    case "Blocks": return new rb.BlocksLayoutSettings();
-    default:
-      throw new Error(`Unknown layout algorithm (${algoName})`);
-  }
-}
-
-function algoConstrOfAlgoName<A extends AlgorithmName>(algoName: A): rb.Layout {
+function algoConstrOfAlgoName<A extends AlgorithmName>(algoName: A): rb.Layout<UserData> {
   let underlyingAlgoName: AlgorithmName
       = algoName === "Unstyled"
         ? "L1P" : algoName === "BlocksNS"
           ? "Blocks" : algoName;
 
-  return rb.constructAlgoByName(underlyingAlgoName, settingsOfAlgoName(underlyingAlgoName));
+  return rb.constructAlgoByName(underlyingAlgoName, {
+    idealLeading: 20,
+    enableSimplification: true,
+    translateWraps: true
+  });
 }
 
 function langOfSrcPath(srcPath: string): any {
@@ -258,16 +244,9 @@ function langOfSrcPath(srcPath: string): any {
 
 async function measureRuntime(srcPath: string, algoName: AlgorithmName, iters: number): Promise<number> {
   const algo = algoConstrOfAlgoName(algoName);
-  const ext = extname(srcPath);
-  const lang = langOfSrcPath(srcPath);
 
-  const settings: ParseSettings = {
-    useSpacers: algoName !== "BlocksNS",
-    breakMultiLineAtoms: ext === ".py",
-  };
-
-  const src = fs.readFileSync(srcPath, { encoding: "utf8" });
-  const testTree = parse(src, lang, settings);
+  // Prepare layout tree
+  const testTree = layoutTreeOfSrcFile(srcPath, algoName !== "BlocksNS");
   rb.randomizeFillColors(testTree);
   let testTreeWithMeasurements = rb.measureLayoutTree(testTree, measureFallback);
 
@@ -296,10 +275,25 @@ const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   renderTestMesh: false
 };
 
+function layoutTreeOfSrcFile(srcPath: string, useSpacers?: boolean): rb.LayoutTree<UserData> {
+  if(useSpacers === undefined) {
+    useSpacers = true;
+  }
+
+  const ext = extname(srcPath);
+  const src = fs.readFileSync(srcPath, { encoding: "utf8" });
+  const lang = langOfSrcPath(srcPath);
+  const settings: ParseSettings = {
+    useSpacers,
+    breakMultiLineAtoms: ext === ".py",
+  };
+  return parse(src, lang, settings) as rb.LayoutTree<UserData>;
+}
+
 async function bench(
   srcPath: string,
   algoName: AlgorithmName,
-  measure: (text: string) => rb.Rect,
+  measure: (text: string, userData: UserData | undefined) => rb.Rect,
   renderSettings?: Partial<RenderSettings>
 ): Promise<BenchResult> {
   if(!renderSettings) {
@@ -309,20 +303,18 @@ async function bench(
 
   console.log(`Working on ${algoName}...`);
   const testAlgo = algoConstrOfAlgoName(algoName);
-  const ext = extname(srcPath);
-  const lang = langOfSrcPath(srcPath);
 
-  const settings: ParseSettings = {
-    useSpacers: algoName !== "BlocksNS",
-    breakMultiLineAtoms: ext === ".py",
-  };
-
-  const src = fs.readFileSync(srcPath, { encoding: "utf8" });
-  const testTree = parse(src, lang, settings);
+  // Prepare the test tree
+  const testTree = layoutTreeOfSrcFile(srcPath, algoName !== "BlocksNS");
   rb.randomizeFillColors(testTree);
   let testTreeWithMeasurements = rb.measureLayoutTree(testTree, measure);
 
-  const refTree = parse(src, lang, settings);
+  // Count the number of wrap nodes
+  const nWraps = rb.rlt.countWraps(rb.reassocLayoutTree(testTree));
+
+  // Prepare the reference tree (with no padding, simulating an
+  // ordinary un-structured text layout).
+  const refTree = layoutTreeOfSrcFile(srcPath, algoName !== "BlocksNS");
   rb.removePadding(refTree);
   let refTreeWithMeasurements = rb.measureLayoutTree(refTree, measure);
 
@@ -332,7 +324,10 @@ async function bench(
 
   let refMesh: rb.MeshDistanceMesh | undefined = undefined;
   if(algoName !== "Unstyled") {
-    const refAlgo = new rb.RocksLayout(new rb.RocksLayoutSettings(true, 20));
+    const refAlgo = new rb.RocksLayout({
+      idealLeading: 20,
+      translateWraps: true
+    });
     const refResult = await refAlgo.layout(refTreeWithMeasurements);
     refMesh = rb.MeshDistanceMesh.fromFragments(refResult);
   }
@@ -356,16 +351,14 @@ async function bench(
     vertMeshDistances = refMesh.verticalMeshDistances(testMesh);
   }
 
-  const atomsIter = rb.eachAtomWithInheritedStyles(testTreeWithMeasurements);
   const text = new (class extends rb.Render {
     render(svg: rb.Svg, _sty: rb.SVGStyle) {
       for(const frag of testResult.fragmentsInfo()) {
-        const atom = atomsIter.next().value as rb.Atom<rb.WithMeasurements<rb.WithStyles>>;
         const text = svg.text(frag.text);
         text.fontFamily("Inconsolata Medium");
         text.fontSize("12px");
-        text.fill(atom.sty.color);
-        text.move(frag.rect.left, frag.rect.top - atom.rect.top);
+
+        text.move(frag.rect.left, frag.rect.top + (frag.userData?.textBaselineOffset ?? 0));
       }
     }
 
@@ -398,6 +391,7 @@ async function bench(
     vertMeshDistances,
     meanLineWidth,
     nFragments: testMesh.countFragments(),
+    nWraps,
     duration,
     basename: basename(srcPath),
     algoName: algoName,
@@ -598,6 +592,95 @@ async function mkErrorTables(forLaTeX: boolean) {
   }));
 }
 
+function countCornersInResult<D>(result: rb.TraverseOutlines<D>): number {
+  let sum = 0;
+  for(const pgon of result.walk()) {
+    sum += pgon.outline.reduce((sum: number, path: rb.polygon.Path) => {
+      return sum + path.length;
+    }, 0);
+  }
+  return sum;
+}
+
+async function countCorners(srcPath: string, enableSimplification: boolean): Promise<number> {
+  const testTree = layoutTreeOfSrcFile(srcPath);
+  let testTreeWithMeasurements = rb.measureLayoutTree(testTree, measureFallback);
+
+  const algo = new rb.OutlinedRocksLayout({
+    translateWraps: true,
+    idealLeading: 20,
+    enableSimplification
+  });
+  const res = await algo.layout(testTreeWithMeasurements);
+
+  return countCornersInResult(res);
+}
+
+async function mkSimplTable(forLaTeX: boolean) {
+  const srcPaths: string[] = [
+    // "./inputs/core.ts",
+    "./inputs/diff-objs.ts",
+    "./inputs/functional.py",
+    "./inputs/simplex.py",
+    "./inputs/solve.hs",
+    "./inputs/layout.hs",
+  ];
+
+  let rows: (number | string)[][] = [];
+
+  for(const srcPath of srcPaths) {
+    console.log(`>>>>>>>>>>> Benching ${srcPath} <<<<<<<<<<<`);
+    const base = basename(srcPath);
+
+    const lt = layoutTreeOfSrcFile(srcPath);
+    const rlt = rb.reassocLayoutTree(lt);
+    const nWraps = rb.rlt.countWraps(rlt);
+
+    console.log(`>>>>>>>>>>> Counting Unsimplified Corners`);
+    const nCornersUnsimpl = await countCorners(srcPath, false);
+
+    console.log(`>>>>>>>>>>> Counting Simplified Corners`);
+    const nCornersSimpl = await countCorners(srcPath, true);
+
+    console.log(`>>>>>>>>>>> Measuring Runtime`);
+
+    const simplDuration = await measureRuntime(
+      srcPath,
+      "L1S+",
+      1,
+    );
+
+    const row = [
+      base,
+      nWraps,
+      simplDuration,
+      nCornersUnsimpl,
+      nCornersSimpl,
+      nCornersUnsimpl / nWraps,
+      nCornersSimpl / nWraps
+    ];
+    rows.push(row);
+  }
+
+  console.log(fmtTable(
+    ["Filename", "Rocks", "Duration", "Total (un)", "Total (s)", "Mean (un)", "Mean (s)"],
+    rows, forLaTeX, (s, _row, _col, atEnd) => {
+    if(forLaTeX) {
+      s = `${s}`
+
+      if(atEnd) {
+        s += " \\\\";
+      } else {
+        s += " & "
+      }
+
+      return s;
+    } else {
+      return s + " ";
+    }
+  }));
+}
+
 async function main() {
   const inputFileArg = new Argument("<input file>", "The input source file to layout.");
   const algOption = new Option("-a --algorithm <string>", "The algorithm to use for layout.").default("L1S");
@@ -642,10 +725,18 @@ async function main() {
     const errorCmd = new Command("errorTables");
     errorCmd.addOption(latexOption);
     errorCmd.description("Generate an error benchmark.");
-    errorCmd.action(opt => {
-      mkErrorTables(opt.LaTeX);
+    errorCmd.action(async (opt) => {
+      await mkErrorTables(opt.LaTeX);
     });
     tableCmd.addCommand(errorCmd);
+
+    const simplCmd = new Command("simplTable");
+    simplCmd.addOption(latexOption);
+    simplCmd.description("Generate a simplification benchmark.");
+    simplCmd.action(async (opt) => {
+      await mkSimplTable(opt.LaTeX);
+    });
+    tableCmd.addCommand(simplCmd);
   }
 
   const layoutCmd = new Command("layout");
@@ -681,7 +772,6 @@ async function main() {
         console.log(`Using ${lang.name} parser.`);
       }
 
-      const algoName = asAlgorithmName(opt.algorithm);
       const measure = mkMeasure("./Inconsolata-Medium.otf");
       const renderSettings: RenderSettings = {
         renderFragmentBoundingBoxes: opt.rFragmentBoundingBoxes,
@@ -689,13 +779,15 @@ async function main() {
         renderRefMesh: opt.rRefMesh,
         renderText: !opt.noText
       };
-      const result = await bench(srcPath, algoName, measure, renderSettings);
+
+      const result = await bench(srcPath, opt.algorithm, measure, renderSettings);
 
       if(opt.verbose) {
         console.log("mean horz mesh distance: ", result.meanHorzMeshDistance);
         console.log("mean vert mesh distance: ", result.meanVertMeshDistance);
         console.log("mean line width: ", result.meanLineWidth);
         console.log("number of fragments: ", result.nFragments);
+        console.log("number of wrap nodes: ", result.nWraps);
         console.log("duration: ", fmtDuration(result.duration));
       }
 

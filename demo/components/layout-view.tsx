@@ -4,17 +4,19 @@ import * as styles from "./layout-view.module.css";
 import Dropdown from "./dropdown-component";
 import Button from "./button-component";
 import LabeledCheckbox from "./labeled-checkbox-component";
+import LabeledNumberPicker from "./labeled-number-picker-component";
 import layout, { LayoutResult, RenderSettings } from "../layout";
 import {
   faGear,
   faDownload,
 } from "@fortawesome/free-solid-svg-icons";
 import Tooltip from "./tooltip-component";
+import { UserData } from "../layout-user-data";
 
 interface LayoutViewProps<A extends rb.AlgorithmName> {
-  layoutTree: rb.LayoutTree;
+  layoutTree: rb.LayoutTree<UserData>;
   algoName: A;
-  measure: (text: string) => rb.Rect;
+  measure: (text: string, userData: UserData | undefined) => rb.Rect;
   useWebWorkers?: boolean;
 }
 
@@ -45,6 +47,28 @@ function describeDuration(duration: number): string {
   return `${format.format(duration)} ${unit}`;
 }
 
+function settingRelevantForAlgo(key: string, algoName: rb.AlgorithmName): boolean {
+  switch(algoName) {
+    case "Blocks": return false;
+    case "S-Blocks": return ["idealLeading"].indexOf(key) >= 0;
+    case "L1P": return ["idealLeading", "translateWraps"].indexOf(key) >= 0;
+    case "L1S":
+    case "L1S+":
+    case "L2AS":
+    case "L2AS+": return ["idealLeading", "translateWraps", "enableSimplification"].indexOf(key) >= 0;
+  }
+}
+
+function descriptionOfSetting(key: string): string {
+  switch(key) {
+    case "translateWraps": return "Translate wraps";
+    case "enableSimplification": return "Enable simplification";
+    case "idealLeading": return "Leading";
+    default:
+      return key;
+  }
+}
+
 export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutViewProps<A>) {
   const [statusText, setStatusText] = react.useState<string>("");
   const [layoutResult, setLayoutResult] = react.useState<LayoutResult>({
@@ -62,24 +86,11 @@ export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutView
 
   const [settingsOpen, setSettingsOpen] = react.useState<boolean>(false);
 
-  const [layoutSettings, setLayoutSettings] = react.useState<rb.Settings<A>>((() => {
-    switch (props.algoName) {
-      case "L1P":
-        return new rb.PebbleLayoutSettings(true, 10);
-      case "L1S":
-        return new rb.RocksLayoutSettings(true, 10);
-      case "L1S+":
-        return new rb.OutlinedRocksLayoutSettings(true, 10, true);
-      case "L2AS":
-        return new rb.RocksLayoutSettings(true, 10);
-      case "L2AS+":
-        return new rb.OutlinedRocksLayoutSettings(true, 10, true);
-      case "Blocks":
-        return new rb.BlocksLayoutSettings();
-      case "S-Blocks":
-        return new rb.SBlocksLayoutSettings(10);
-    }
-  })() as rb.Settings<A>);
+  const [layoutSettings, setLayoutSettings] = react.useState<rb.AnySettings>({
+    translateWraps: true,
+    idealLeading: 10,
+    enableSimplification: true
+  });
 
   const [renderSettings, setRenderSettings] = react.useState<RenderSettings>({
     renderDistanceMesh: false,
@@ -198,29 +209,51 @@ export default function LayoutView<A extends rb.AlgorithmName>(props: LayoutView
           checked={renderSettings.renderFragmentBoundingBoxes}
           onChange={(onOff) =>
             setRenderSettings(settings => ({ ...settings, renderFragmentBoundingBoxes: onOff }))
-          }/>
+        }/>
         {
-          // TODO: Maybe state.algoSettings should expose an interface which provides
-          // a description for each setting and a way to modify the setting in a type-safe way.
-          [
-            ...layoutSettings.viewSettings().map(settingView => {
-              let toggle = settingView.asToggle();
-              if(toggle !== null) {
+          Object.entries(layoutSettings).flatMap(([key, value]) => {
+              if(!settingRelevantForAlgo(key, props.algoName)) {
+                return [];
+              }
+              if(typeof(value) === "boolean") {
                 return (
-                  <div key={toggle.key}>
+                  <div key={key}>
                     <LabeledCheckbox
-                      label={toggle.description}
-                      checked={toggle.value}
+                      label={descriptionOfSetting(key)}
+                      checked={value}
                       onChange={(onOff) => {
-                        setLayoutSettings((toggle.update(onOff) as rb.Settings<A>));
+                        setLayoutSettings(settings => {
+                          const newSettings = { ...settings };
+                          (newSettings[key as keyof rb.AnySettings] as boolean) = onOff;
+                          return newSettings;
+                        });
                       }}
                     />
                   </div>
                 );
               }
-            }),
-          ]
-        }{" "}
+              if(typeof(value) === "number") {
+                return (
+                  <div key={key}>
+                    <LabeledNumberPicker
+                      label={descriptionOfSetting(key)}
+                      value={value}
+                      min={0}
+                      initialPlace={-1}
+                      onChange={(n) => {
+                        setLayoutSettings(settings => {
+                          const newSettings = { ...settings };
+                          (newSettings[key as keyof rb.AnySettings] as number) = n;
+                          return newSettings;
+                        });
+                      }}
+                    />
+                  </div>
+                );
+              }
+              return [];
+            })
+        }
       </Dropdown>
     </div>
   );

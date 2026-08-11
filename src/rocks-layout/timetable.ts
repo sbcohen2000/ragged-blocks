@@ -9,7 +9,6 @@ export type WithRegions<A = {}> = {
   JoinH:  { region: Region };
   JoinV:  { region: Region };
   Atom:   { stackRef: StackRef };
-  Spacer: { stackRef: StackRef };
   Wrap:   { region: Region, uid: number };
 } & A;
 
@@ -19,12 +18,11 @@ export type WithRegions<A = {}> = {
  * @param layoutTree The layout tree whose `Region` to get.
  * @returns A `Region`.
  */
-export function regionOfLayoutTree(layoutTree: LayoutTree<WithRegions>): Region {
+export function regionOfLayoutTree<D>(layoutTree: LayoutTree<D, WithRegions>): Region {
   switch(layoutTree.type) {
     case "Wrap":
     case "JoinV":
     case "JoinH": return layoutTree.region;
-    case "Spacer":
     case "Atom": return regionFromStackRef(layoutTree.stackRef);
   }
 }
@@ -127,7 +125,7 @@ export class Timetable {
    * @param layoutTree The layout tree from which to build the table.
    * @returns A pair of `Timetable` and `LayoutTreeWithRegions`.
    */
-  static fromLayoutTree<A extends Ann>(layoutTree: LayoutTree<A>): [Timetable, LayoutTree<WithRegions<A>>] {
+  static fromLayoutTree<D, A extends Ann>(layoutTree: LayoutTree<D, A>): [Timetable, LayoutTree<D, WithRegions<A>>] {
 
     // Start at 1 to account for the uid of the `BASE_CELL`.
     let _nextId = 1;
@@ -135,16 +133,11 @@ export class Timetable {
 
     const columns: ColumnOrSpacer[] = [];
 
-    const go = (root: LayoutTree<A>): [number, LayoutTree<WithRegions<A>>] => {
+    const go = (root: LayoutTree<D, A>): [number, LayoutTree<D, WithRegions<A>>] => {
       switch(root.type) {
-        case "Spacer": {
-          const index = columns.length;
-          columns.push(null);
-          return [0, { ...root, stackRef: { depth: 0, index } }];
-        }
         case "Atom": {
           const index = columns.length;
-          columns.push([BASE_CELL]);
+          columns.push(root.isSpacer ? null : [BASE_CELL]);
           return [0, { ...root, stackRef: { depth: 0, index } }];
         }
         case "JoinH":
@@ -256,7 +249,7 @@ export class Timetable {
 
   /**
    * Get the maximum padding that can be applied to the element at the
-   * given index.
+   * given index. The element must not be a spacer.
    *
    * @param index The index of the element.
    * @returns The maximum padding that may be applied to the element

@@ -8,7 +8,7 @@ import * as r from "../rect";
 import * as v from "../vector";
 import { Range, Region } from "./region";
 
-export type RectOrSpacer = r.Rect | number;
+export type RectOrSpacer = r.Rect & { isSpacer: boolean };
 
 type RectWithPadding = {
   /**
@@ -21,7 +21,7 @@ type RectWithPadding = {
   maxPadding: number;
 };
 
-type RectOrSpacerWithPadding = RectWithPadding | number;
+type RectOrSpacerWithPadding = RectWithPadding & { isSpacer: boolean };
 
 const CELL_SIZE = 100;
 
@@ -110,10 +110,11 @@ export default class Backing {
    * @param r The new `Rect` to add.
    * @param padding The maximum padding that can be applied to this
    * rectangle.
+   * @param isSpacer Does the rectangle represent a spacer?
    * @returns The index of the element.
    */
-  pushRect(r: r.Rect, maxPadding: number) {
-    const elt = { rect: r, maxPadding };
+  pushRect(r: r.Rect, maxPadding: number, isSpacer: boolean) {
+    const elt = { rect: r, maxPadding, isSpacer };
     this.elements.push(elt);
     const index = this.elements.length - 1;
 
@@ -123,17 +124,6 @@ export default class Backing {
     }
 
     return index;
-  }
-
-  /**
-   * Add a new spacer to the `Backing`, returning its index.
-   *
-   * @param w The width of the new spacer.
-   * @returns The index of the element.
-   */
-  pushSpacer(w: number) {
-    this.elements.push(w);
-    return this.elements.length - 1;
   }
 
   /**
@@ -173,11 +163,7 @@ export default class Backing {
    */
   getByIndex(index: number): RectOrSpacer {
     const e = this.elements[index];
-    if(typeof e === "number") {
-      return e;
-    } else {
-      return e.rect;
-    }
+    return { ...e.rect, isSpacer: e.isSpacer };
   }
 
   /**
@@ -191,7 +177,7 @@ export default class Backing {
     for(let i = range.begin; i < range.end; ++i) {
       const elt = this.elements[i];
 
-      if(typeof elt !== "number") {
+      if(!elt.isSpacer) {
         yield [elt.rect, i];
       }
     }

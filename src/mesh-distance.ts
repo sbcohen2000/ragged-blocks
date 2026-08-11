@@ -84,7 +84,7 @@ export class MeshDistanceMesh extends Render {
    * @param a The layout result from which to construct a mesh.
    * @returns A new `MeshDistanceMesh`.
    */
-  static fromFragments<A extends FragmentsInfo>(a: A): MeshDistanceMesh {
+  static fromFragments<D, A extends FragmentsInfo<D>>(a: A): MeshDistanceMesh {
     let curLineNo = -1;
     let lastLineY: number | null = null;
     let lastFragPositionOnLine: Point | null = null;

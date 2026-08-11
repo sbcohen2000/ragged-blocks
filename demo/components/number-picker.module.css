@@ -1,0 +1,47 @@
+.numberPicker {
+    font-family: monospace;
+    user-select: none;
+    --webkit-user-select: none;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.label {
+    font-size: 9pt;
+    font-family: sans-serif;
+}
+
+.number {
+    text-align: center;
+    min-width: 20px;
+    cursor: ew-resize;
+}
+
+.glyph {
+    height: 1ch;
+    filter: brightness(0%);
+    cursor: pointer;
+}
+
+.glyph:hover {
+    filter: brightness(50%);
+}
+
+.glyph.disabled:hover {
+    filter: brightness(90%);
+}
+
+.disabled {
+    filter: brightness(90%);
+    cursor: default;
+}
+
+.left {
+    padding-left: 4px;
+    transform: rotate(180deg);
+}
+
+.right {
+    padding-left: 4px;
+}

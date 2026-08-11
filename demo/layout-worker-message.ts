@@ -1,15 +1,16 @@
 import * as rb from "ragged-blocks";
+import { UserData } from "./layout-user-data";
 
 export type RenderSettings = {
   renderDistanceMesh?: boolean;
   renderFragmentBoundingBoxes?: boolean;
 };
 
-export type WorkerMsg<A extends rb.AlgorithmName> = {
+export type WorkerMsg = {
   type: "begin";
-  layoutTree: rb.LayoutTree<rb.WithMeasurements>;
-  algoName: A;
-  algoSettings: rb.Settings<A>;
+  layoutTree: rb.LayoutTree<UserData, rb.WithMeasurements>;
+  algoName: rb.AlgorithmName;
+  algoSettings: rb.AnySettings;
   renderSettings: RenderSettings;
 };
 

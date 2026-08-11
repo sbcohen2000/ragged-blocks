@@ -5,16 +5,17 @@ import reassocLayoutTree from "../reassoc/reassoc-layout-tree";
 import { FragmentsInfo, FragmentInfo } from "../layout-tree";
 import { default as GLPK, Options, LP } from "glpk.js";
 import { LayoutTree, WithMeasurements, WithOutlines } from "../reassoc/layout-tree";
-import { NumberSettingView, SettingView, ToggleSettingView, ViewSettings } from "../settings";
-import { Polygon, PolygonRendering } from "../polygon";
+import { LayoutSettings } from "../settings";
+import { checkPolygonOK, isPathCCW, Polygon, PolygonRendering } from "../polygon";
 import { Rect, horizontallyOverlap, inflate, width, height, union } from "../rect";
 import { Region, EMPTY, joinRegions, enumerateIndices, regionFromStackRef, singletonRegion } from "./region";
-import { Svg, Render, SVGStyle } from "../render";
+import { Svg, Render, SVGStyle, TraverseOutlines, OutlineTraversalElement } from "../render";
 import { Timetable, WithRegions, regionOfLayoutTree } from "./timetable";
 import { add, Vector } from "../vector";
 import { addVector, Point, subPoints } from "../point";
 import { fromRectangles } from "../polygon/from-rectangles";
 import { pathOfRect, offsetPolygon, simplifyPolygons } from "../polygon";
+import { toSVG } from "../render";
 
 /**
  * Find the leading between regions `a` and `b`. In other words, find
@@ -37,7 +38,7 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
   for(const bIdx of enumerateIndices(b)) {
     // Check if `rb` is a spacer.
     const rb = backing.getByIndex(bIdx);
-    if(typeof rb === "number") {
+    if(rb.isSpacer) {
       continue;
     }
 
@@ -54,8 +55,7 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
 
         const ra = backing.getByIndex(aIdx);
 
-        // Check if `ra` is a spacer.
-        if(typeof ra === "number") {
+        if(ra.isSpacer) {
           continue;
         }
 
@@ -111,7 +111,7 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
         // Check if one of `ax` or `bx` is a spacer. In that case, since
         // spacers occupy no vertical space, we can just check a
         // different pair.
-        if(typeof ra === "number" || typeof rb === "number") {
+        if(ra.isSpacer || rb.isSpacer) {
           continue;
         }
 
@@ -143,12 +143,12 @@ function leading(backing: Backing, timetable: Timetable, a: Region, b: Region): 
  * `LayoutTree<WithRegions>` which has the same structure as the input
  * tree, but is annotated with the region of each `Node`.
  */
-class UnsimplifiedRocksLayoutResult extends Render implements FragmentsInfo {
+class UnsimplifiedRocksLayoutResult<D> extends Render implements FragmentsInfo<D> {
   backing: Backing;
   timetable: Timetable;
-  layoutTree: LayoutTree<WithRegions>;
+  layoutTree: LayoutTree<D, WithRegions>;
 
-  constructor(backing: Backing, timetable: Timetable, layoutTree: LayoutTree<WithRegions>) {
+  constructor(backing: Backing, timetable: Timetable, layoutTree: LayoutTree<D, WithRegions>) {
     super();
     this.backing = backing;
     this.timetable = timetable;
@@ -156,10 +156,9 @@ class UnsimplifiedRocksLayoutResult extends Render implements FragmentsInfo {
   }
 
   render(svg: Svg, _sty: SVGStyle): void {
-    const go = (root: LayoutTree<WithRegions>) => {
+    const go = (root: LayoutTree<D, WithRegions>) => {
       switch(root.type) {
-        case "Atom":
-        case "Spacer": break; // Nothing to do.
+        case "Atom": break; // Nothing to do.
         case "JoinV":
         case "JoinH": {
           go(root.lhs);
@@ -217,21 +216,15 @@ class UnsimplifiedRocksLayoutResult extends Render implements FragmentsInfo {
     return bbox;
   }
 
-  fragmentsInfo(): FragmentInfo[] {
-    let out: FragmentInfo[] = [];
+  fragmentsInfo(): FragmentInfo<D>[] {
+    let out: FragmentInfo<D>[] = [];
     let lineNo = 0;
-    const go = (root: LayoutTree<WithRegions>) => {
+    const go = (root: LayoutTree<D, WithRegions>) => {
       switch(root.type) {
         case "Atom": {
           const rect = this.backing.getByIndex(root.stackRef.index);
-          assert(typeof rect !== "number", "Found Spacer where Atom is expected");
-          out.push({
-            rect,
-            lineNo,
-            text: root.text
-          });
+          out.push({ ...root, rect, lineNo });
         } break;
-        case "Spacer": break;
         case "JoinV": {
           go(root.lhs);
           lineNo += 1;
@@ -351,32 +344,23 @@ function translateRegionWithAdvance(backing: Backing, region: RegionWithAdvance,
   backing.translateRegion(region.region, v);
 }
 
-export class RocksLayoutSettings implements ViewSettings {
-  public translateWraps: boolean;
-  public idealLeading: number;
-
-  constructor(translateWraps: boolean, idealLeading: number) {
-    this.translateWraps = translateWraps;
-    this.idealLeading = idealLeading;
-  }
-
-  viewSettings(): SettingView[] {
-    return [
-      ToggleSettingView.new("translateWraps", this, "Translate wraps"),
-      NumberSettingView.new("idealLeading", this, "Ideal leading"),
-    ]
-  }
-
-  clone() {
-    return new RocksLayoutSettings(this.translateWraps, this.idealLeading);
-  }
+export interface RocksLayoutSettings extends LayoutSettings {
+  translateWraps: boolean;
 }
 
-export class RocksLayout implements alt.Layout {
+export const defaultRocksLayoutSettings: RocksLayoutSettings = {
+  idealLeading: 0,
+  translateWraps: true
+};
+
+export class RocksLayout<D> implements alt.Layout<D> {
   private settings: RocksLayoutSettings;
 
-  constructor(settings: RocksLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<RocksLayoutSettings>) {
+    this.settings = {
+      ...defaultRocksLayoutSettings,
+      ...settings
+    };
   }
 
   /**
@@ -412,31 +396,23 @@ export class RocksLayout implements alt.Layout {
     a.push(...b);
   }
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
+  async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
     const backing = new Backing();
-    const empty: LayoutTree<WithMeasurements> = { type: "Spacer", width: 0, text: "" };
-    const rlt: LayoutTree<WithMeasurements> = reassocLayoutTree(layoutTree, empty);
+    const empty: LayoutTree<D, WithMeasurements> = { type: "Atom", text: "", isSpacer: true, rect: { left: 0, right: 0, top: 0, bottom: 0 } };
+    const rlt: LayoutTree<D, WithMeasurements> = reassocLayoutTree(layoutTree, empty);
     const [timetable, ltWithRegions] = Timetable.fromLayoutTree(rlt);
 
-    const go = (root: LayoutTree<WithRegions<WithMeasurements>>): L1s => {
+    const go = (root: LayoutTree<D, WithRegions<WithMeasurements>>): L1s => {
       switch(root.type) {
         case "Atom": {
-          const maxPadding = timetable.getMaxPadding(root.stackRef.index);
-          assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding));
+          const maxPadding = root.isSpacer ? 0 : timetable.getMaxPadding(root.stackRef.index);
+          assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding, root.isSpacer));
           return [{
             region: regionFromStackRef(root.stackRef),
             origin: { x: 0, y: 0 },
             advance: { dx: width(root.rect), dy: 0}
           }]
         };
-        case "Spacer": {
-          assert(root.stackRef.index === backing.pushSpacer(root.width));
-          return [{
-            region: regionFromStackRef(root.stackRef),
-            origin: { x: 0, y: 0 },
-            advance: { dx: root.width, dy: 0 }
-          }];
-        }
         case "JoinH": {
           const layout = go(root.lhs);
           RocksLayout.extendH(backing, layout, go(root.rhs));
@@ -479,11 +455,14 @@ export class RocksLayout implements alt.Layout {
 type L2ASFragment<A = {}> = { pinId: string | undefined, idx: number } & A;
 type L2AS<A = {}> = L2ASFragment<A>[][];
 
-export class RocksLayoutWithPins implements alt.Layout {
+export class RocksLayoutWithPins<D> implements alt.Layout<D> {
   private settings: RocksLayoutSettings;
 
-  constructor(settings: RocksLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<RocksLayoutSettings>) {
+    this.settings = {
+      ...defaultRocksLayoutSettings,
+      ...settings
+    }
   }
 
   /**
@@ -527,34 +506,29 @@ export class RocksLayoutWithPins implements alt.Layout {
   private static advance(backing: Backing, timetable: Timetable, aIdx: number, bIdx: number): number {
     const [aSpc, bSpc] = timetable.spaceBetween(aIdx, bIdx);
     const aRectOrSpacer = backing.getByIndex(aIdx);
-    const aWidth = typeof aRectOrSpacer === "number" ? aRectOrSpacer : width(aRectOrSpacer);
-    return aWidth + aSpc + bSpc;
+    return width(aRectOrSpacer) + aSpc + bSpc;
   }
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
+  async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
     const backing = new Backing();
-    const empty: LayoutTree<WithMeasurements> = { type: "Spacer", width: 0, text: "" };
-    const rlt: LayoutTree<WithMeasurements> = reassocLayoutTree(layoutTree, empty);
+    const empty: LayoutTree<D, WithMeasurements> = { type: "Atom", text: "", isSpacer: true, rect: { left: 0, right: 0, top: 0, bottom: 0 } };
+    const rlt: LayoutTree<D, WithMeasurements> = reassocLayoutTree(layoutTree, empty);
     const [timetable, ltWithRegions] = Timetable.fromLayoutTree(rlt);
 
     // Collect a set of all of the PinIds in the layout tree,
     // including an implicit pin for the left margin.
     const allPinIds: Set<string> = new Set(["^"]);
 
-    const go = (root: LayoutTree<WithRegions<WithMeasurements>>): L2AS => {
+    const go = (root: LayoutTree<D, WithRegions<WithMeasurements>>): L2AS => {
       switch(root.type) {
         case "Atom": {
-          const maxPadding = timetable.getMaxPadding(root.stackRef.index);
-          assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding));
+          const maxPadding = root.isSpacer ? 0 : timetable.getMaxPadding(root.stackRef.index);
+          assert(root.stackRef.index === backing.pushRect(root.rect, maxPadding, root.isSpacer));
           if(root.pinId !== undefined) {
             allPinIds.add(root.pinId);
           }
           return [[{ pinId: root.pinId, idx: root.stackRef.index }]];
         };
-        case "Spacer": {
-          assert(root.stackRef.index === backing.pushSpacer(root.width));
-          return [[{ pinId: undefined, idx: root.stackRef.index }]];
-        }
         case "JoinH": {
           const layout = go(root.lhs);
           RocksLayoutWithPins.extendH(layout, go(root.rhs));
@@ -660,7 +634,6 @@ export class RocksLayoutWithPins implements alt.Layout {
       objective,
       subjectTo: constraints
     }, glpkOptions);
-    console.log("Soln:", soln.result.vars);
 
     // Now, finalize the layout by vertically positioning each line.
     let lastLineOffset = 0;
@@ -706,33 +679,31 @@ export class RocksLayoutWithPins implements alt.Layout {
  * @returns A `Polygon`, or `null` if the given `layoutTree` doesn't
  * have any Nodes.
  */
-export function outlineOfLayoutTree(layoutTree: LayoutTree<WithOutlines>): Polygon | null {
+export function outlineOfLayoutTree<D>(layoutTree: LayoutTree<D, WithOutlines>): Polygon | null {
   switch(layoutTree.type) {
     case "JoinH":
     case "JoinV": {
       return outlineOfLayoutTree(layoutTree.lhs) ?? outlineOfLayoutTree(layoutTree.rhs);
     }
-    case "Spacer":
     case "Atom": return null;
     case "Wrap": return layoutTree.outline;
   }
 }
 
-class OutlinedRocksLayoutResult extends Render implements FragmentsInfo {
-  private layoutTree: LayoutTree<WithRegions<WithOutlines>>;
-  private unsimplifiedResult: UnsimplifiedRocksLayoutResult;
+class OutlinedRocksLayoutResult<D> extends Render implements FragmentsInfo<D>, TraverseOutlines<D> {
+  private layoutTree: LayoutTree<D, WithRegions<WithOutlines>>;
+  private unsimplifiedResult: UnsimplifiedRocksLayoutResult<D>;
 
-  constructor(layoutTree: LayoutTree<WithRegions<WithOutlines>>, unsimplifiedResult: UnsimplifiedRocksLayoutResult) {
+  constructor(layoutTree: LayoutTree<D, WithRegions<WithOutlines>>, unsimplifiedResult: UnsimplifiedRocksLayoutResult<D>) {
     super();
     this.layoutTree = layoutTree;
     this.unsimplifiedResult = unsimplifiedResult;
   }
 
   render(svg: Svg, sty: SVGStyle) {
-    const go = (root: LayoutTree<WithRegions<WithOutlines>>) => {
+    const go = (root: LayoutTree<D, WithRegions<WithOutlines>>) => {
       switch(root.type) {
-        case "Atom":
-        case "Spacer": break;
+        case "Atom": break;
         case "JoinV":
         case "JoinH": {
           go(root.lhs);
@@ -761,33 +732,44 @@ class OutlinedRocksLayoutResult extends Render implements FragmentsInfo {
     return new PolygonRendering(outermostOutline).boundingBox();
   }
 
-  fragmentsInfo(): FragmentInfo[] {
+  fragmentsInfo(): FragmentInfo<D>[] {
     return this.unsimplifiedResult.fragmentsInfo();
+  }
+
+  *walk(): IterableIterator<OutlineTraversalElement<D>> {
+    const q: LayoutTree<D, WithRegions<WithOutlines>>[] = [];
+    q.push(this.layoutTree);
+
+    while(q.length > 0) {
+      const top = q.shift()!;
+
+      switch(top.type) {
+        case "Atom": break;
+        case "JoinH":
+        case "JoinV": q.push(top.lhs); q.push(top.rhs); break;
+        case "Wrap": {
+          const o: OutlineTraversalElement<D> = { outline: top.outline };
+          if(top.userData !== undefined) {
+            o.userData = top.userData;
+          }
+          if(top.sty !== undefined) {
+            o.sty = top.sty;
+          }
+          yield o;
+          q.push(top.child);
+        } break;
+      }
+    }
   }
 }
 
-export class OutlinedRocksLayoutSettings implements ViewSettings {
-  public translateWraps: boolean;
-  public idealLeading: number;
-  public enableSimplification: boolean;
+export interface OutlinedRocksLayoutSettings extends RocksLayoutSettings {
+  enableSimplification: boolean;
+}
 
-  constructor(translateWraps: boolean, idealLeading: number, enableSimplification: boolean) {
-    this.translateWraps = translateWraps;
-    this.idealLeading = idealLeading;
-    this.enableSimplification = enableSimplification;
-  }
-
-  viewSettings(): SettingView[] {
-    return [
-      ToggleSettingView.new("translateWraps", this, "Translate wraps"),
-      NumberSettingView.new("idealLeading", this, "Ideal leading"),
-      ToggleSettingView.new("enableSimplification", this, "Enable simplification")
-    ]
-  }
-
-  clone() {
-    return new OutlinedRocksLayoutSettings(this.translateWraps, this.idealLeading, this.enableSimplification);
-  }
+export const defaultOutlinedRocksLayoutSettings: OutlinedRocksLayoutSettings = {
+  ...defaultRocksLayoutSettings,
+  enableSimplification: true
 }
 
 /**
@@ -795,19 +777,22 @@ export class OutlinedRocksLayoutSettings implements ViewSettings {
  * rectilinear polygons which outline each rock, and optionally
  * simplifies them.
  */
-export class OutlinedRocksLayout implements alt.Layout {
+export class OutlinedRocksLayout<D> implements alt.Layout<D> {
   protected settings: OutlinedRocksLayoutSettings;
 
-  constructor(settings: OutlinedRocksLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<OutlinedRocksLayoutSettings>) {
+    this.settings = {
+      ...defaultOutlinedRocksLayoutSettings,
+      ...settings,
+    }
   }
 
-  protected layoutUnsimplified(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
-    const algo = new RocksLayout(this.settings);
+  protected layoutUnsimplified(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
+    const algo = new RocksLayout<D>(this.settings);
     return algo.layout(layoutTree);
   }
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<OutlinedRocksLayoutResult> {
+  async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<OutlinedRocksLayoutResult<D>> {
     const unsimplified = await this.layoutUnsimplified(layoutTree);
     const outerBBox = unsimplified.boundingBox();
     const outerOutline: Polygon = outerBBox ? [pathOfRect(outerBBox)] : [];
@@ -836,7 +821,8 @@ export class OutlinedRocksLayout implements alt.Layout {
     };
     */
 
-    const go = (root: LayoutTree<WithRegions>, outline: Polygon): LayoutTree<WithRegions<WithOutlines>> => {
+    let nFailed = 0;
+    const go = (root: LayoutTree<D, WithRegions>, outline: Polygon): LayoutTree<D, WithRegions<WithOutlines>> => {
       switch(root.type) {
         case "JoinH":
         case "JoinV": {
@@ -859,7 +845,19 @@ export class OutlinedRocksLayout implements alt.Layout {
           // const _ogRhsOutline = clonePolygon(rhsOutline);
 
           if(this.settings.enableSimplification) {
-            simplifyPolygons(outline, [lhsOutline, rhsOutline]);
+            // simplifyPolygons(outline, [lhsOutline, rhsOutline]);
+            try {
+              simplifyPolygons(outline, [lhsOutline, rhsOutline]);
+            } catch(e) {
+              nFailed += 1;
+              // console.log("Simplification failed:")
+
+              // console.log(toSVG(
+              //   new PolygonRendering(outline).withStyles({ stroke: "blue" })
+              //     .stack(new PolygonRendering(lhsOutline).withStyles({ fill: "rgba(200, 200, 100, 0.5)", stroke: "none" }))
+              //     .stack(new PolygonRendering(rhsOutline).withStyles({ fill: "rgba(200, 100, 200, 0.5)", stroke: "none" }))
+              // ));
+            }
           }
 
           // *** Debug ***
@@ -880,8 +878,7 @@ export class OutlinedRocksLayout implements alt.Layout {
             rhs: go(root.rhs, rhsOutline)
           }
         }
-        case "Atom":
-        case "Spacer": return root;
+        case "Atom": return root;
         case "Wrap": {
           let childOutline = offsetPolygon(-root.padding, outline);
 
@@ -895,17 +892,21 @@ export class OutlinedRocksLayout implements alt.Layout {
     }
 
     const withOutlines = go(unsimplified.layoutTree, outerOutline);
+
+    if(nFailed > 0) {
+      console.warn(`Simplification failed for ${nFailed} rocks.`);
+    }
     return new OutlinedRocksLayoutResult(withOutlines, unsimplified);
   }
 }
 
-export class OutlinedRocksLayoutWithPins extends OutlinedRocksLayout {
+export class OutlinedRocksLayoutWithPins<D> extends OutlinedRocksLayout<D> {
   constructor(settings: OutlinedRocksLayoutSettings) {
     super(settings);
   }
 
-  override layoutUnsimplified(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult> {
-    const algo = new RocksLayoutWithPins(this.settings);
+  override layoutUnsimplified(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<UnsimplifiedRocksLayoutResult<D>> {
+    const algo = new RocksLayoutWithPins<D>(this.settings);
     return algo.layout(layoutTree);
   }
 }

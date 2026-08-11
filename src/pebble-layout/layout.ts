@@ -3,7 +3,7 @@ import * as rlt from "../reassoc/layout-tree";
 import reassocLayoutTree from "../reassoc/reassoc-layout-tree";
 import { FragmentsInfo, FragmentInfo } from "../layout-tree";
 import { Svg, Render, SVGStyle } from "../render";
-import { ViewSettings, SettingView, NumberSettingView, ToggleSettingView } from "../settings";
+import { LayoutSettings } from "../settings";
 import { add, Vector } from "../vector";
 import { addVector, subPoints, Point } from "../point";
 import { horizontallyOverlap, inflate, Rect, translate, width, height, union } from "../rect";
@@ -13,14 +13,13 @@ type Cell = {
   padding: number;
 };
 
-type Stack = {
+type Stack<D> = {
   type: "Stack";
   rect: Rect;
   cells: Cell[];
   text: string;
-} | {
-  type: "Spacer",
-  width: number;
+  isSpacer: boolean;
+  userData: D | undefined;
 };
 
 /**
@@ -29,8 +28,8 @@ type Stack = {
  * @param stack The `Stack` to modify.
  * @param v The vector by which to translate `stack`.
  */
-function translateStack(stack: Stack, v: Vector) {
-  if(stack.type === "Stack") {
+function translateStack<D>(stack: Stack<D>, v: Vector) {
+  if(!stack.isSpacer) {
     stack.rect = translate(stack.rect, v);
   }
 }
@@ -42,8 +41,8 @@ function translateStack(stack: Stack, v: Vector) {
  * @param uid The `uid` of the corresponding layout tree node.
  * @param padding The amount of padding to apply.
  */
-function wrapStack(stack: Stack, uid: number, padding: number) {
-  if(stack.type === "Spacer") {
+function wrapStack<D>(stack: Stack<D>, uid: number, padding: number) {
+  if(stack.isSpacer) {
     return;
   }
 
@@ -116,8 +115,8 @@ function leadingRect(a: Rect, b: Rect): number {
  * @returns The amount that `b` must be translated down so that it
  * falls below `a`.
  */
-function leadingStack(a: Stack, b: Stack): number {
-  if(a.type !== "Stack" || b.type !== "Stack") {
+function leadingStack<D>(a: Stack<D>, b: Stack<D>): number {
+  if(a.isSpacer || b.isSpacer) {
     return 0;
   }
 
@@ -128,7 +127,7 @@ function leadingStack(a: Stack, b: Stack): number {
   return leadingRect(ra, rb);
 }
 
-type Region = Stack[];
+type Region<D> = Stack<D>[];
 
 /**
  * Translate a `Region` by the vector `v`.
@@ -136,7 +135,7 @@ type Region = Stack[];
  * @param region The `Region` to modify.
  * @param v The vector by which to translate `stack`.
  */
-function translateRegion(region: Region, v: Vector) {
+function translateRegion<D>(region: Region<D>, v: Vector) {
   for(const stack of region) {
     translateStack(stack, v);
   }
@@ -149,7 +148,7 @@ function translateRegion(region: Region, v: Vector) {
  * @param uid The `uid` of the corresponding layout tree node.
  * @param padding The amount of padding to apply.
  */
-function wrapRegion(region: Region, uid: number, padding: number) {
+function wrapRegion<D>(region: Region<D>, uid: number, padding: number) {
   for(const stack of region) {
     wrapStack(stack, uid, padding);
   }
@@ -163,7 +162,7 @@ function wrapRegion(region: Region, uid: number, padding: number) {
  * @returns The amount that `b` must be translated down so that it
  * falls below `a`.
  */
-function leadingRegion(a: Region, b: Region): number {
+function leadingRegion<D>(a: Region<D>, b: Region<D>): number {
   let maxOffset = 0;
   for(const sa of a) {
     for(const sb of b) {
@@ -176,7 +175,7 @@ function leadingRegion(a: Region, b: Region): number {
 /**
  * A `Region` with an advance vector and an origin.
  */
-type RegionWithAdvance = {
+type RegionWithAdvance<D> = {
   /**
    * A vector pointing from the origin to the point at which new
    * regions should be attached.
@@ -190,7 +189,7 @@ type RegionWithAdvance = {
   /**
    * The region itself.
    */
-  region: Region;
+  region: Region<D>;
 };
 
 /**
@@ -200,7 +199,7 @@ type RegionWithAdvance = {
  * @param region The region whose lead-out point to calculate.
  * @returns The lead-out point.
  */
-function leadOutPoint(region: RegionWithAdvance): Point {
+function leadOutPoint<D>(region: RegionWithAdvance<D>): Point {
   return addVector(region.origin, region.advance);
 }
 
@@ -210,7 +209,7 @@ function leadOutPoint(region: RegionWithAdvance): Point {
  * @param region The `RegionWithAdvance` to modify.
  * @param v The vector by which to translate `stack`.
  */
-function translateRegionWithAdvance(region: RegionWithAdvance, v: Vector) {
+function translateRegionWithAdvance<D>(region: RegionWithAdvance<D>, v: Vector) {
   region.origin = addVector(region.origin, v);
   translateRegion(region.region, v);
 }
@@ -225,7 +224,7 @@ function translateRegionWithAdvance(region: RegionWithAdvance, v: Vector) {
  * wrapping? (A value of `false` corresponds to algorithm G1 as
  * discussed in the paper).
  */
-function wrapRegionWithAdvance(region: RegionWithAdvance, uid: number, padding: number, translate: boolean) {
+function wrapRegionWithAdvance<D>(region: RegionWithAdvance<D>, uid: number, padding: number, translate: boolean) {
   region.advance = add(region.advance, { dx: 2 * padding, dy: 0 });
   wrapRegion(region.region, uid, padding);
   if(translate) {
@@ -245,12 +244,12 @@ function wrapRegionWithAdvance(region: RegionWithAdvance, uid: number, padding: 
  * @param a The region to modify (extend).
  * @param b The region which will be added to `a`.
  */
-function extendRegionWithAdvance(a: RegionWithAdvance, b: RegionWithAdvance) {
+function extendRegionWithAdvance<D>(a: RegionWithAdvance<D>, b: RegionWithAdvance<D>) {
   a.advance = subPoints(leadOutPoint(b), a.origin)
   a.region.push(...b.region);
 }
 
-type L1p = RegionWithAdvance[];
+type L1p<D> = RegionWithAdvance<D>[];
 
 /**
  * Wrap a layout in some padding.
@@ -262,7 +261,7 @@ type L1p = RegionWithAdvance[];
  * value of `false` corresponds to algorithm G1 as discussed in the
  * paper).
  */
-function wrapLayout(layout: L1p, uid: number, padding: number, translate: boolean) {
+function wrapLayout<D>(layout: L1p<D>, uid: number, padding: number, translate: boolean) {
   for(const line of layout) {
     wrapRegionWithAdvance(line, uid, padding, translate);
   }
@@ -274,7 +273,7 @@ function wrapLayout(layout: L1p, uid: number, padding: number, translate: boolea
  * @param a The layout to modify (extend).
  * @param b The layout which will be added to the right hand side of `a`.
  */
-function extendH(a: L1p, b: L1p) {
+function extendH<D>(a: L1p<D>, b: L1p<D>) {
   if(a.length === 0) return b;
   if(b.length === 0) return a;
 
@@ -296,7 +295,7 @@ function extendH(a: L1p, b: L1p) {
  * @param a The layout to modify (extend).
  * @param b The layout which will be added below `a`.
  */
-function extendV(a: L1p, b: L1p) {
+function extendV<D>(a: L1p<D>, b: L1p<D>) {
   a.push(...b);
 }
 
@@ -305,30 +304,16 @@ function extendV(a: L1p, b: L1p) {
  *
  * @param r The rectangle from which to produce a new layout.
  * @param text The text underlying this rectangle.
+ * @param isSpacer Does the rectangle represent a spacer?
+ * @param userData The `UserData` associated with this leaf.
  * @returns A new layout consisting only of the rectangle `r`.
  */
-function layoutFromRect(r: Rect, text: string): L1p {
+function layoutFromRect<D>(r: Rect, text: string, isSpacer: boolean, userData: D | undefined): L1p<D> {
   return [
     {
-      region: [{ type: "Stack", cells: [], rect: r, text }],
+      region: [{ type: "Stack", cells: [], rect: r, text, isSpacer, userData }],
       origin: { x: 0, y: 0 },
       advance: { dx: width(r), dy: 0 }
-    }
-  ];
-}
-
-/**
- * Produce a new layout from a spacer.
- *
- * @param w The width of the spacer.
- * @returns A new layout consisting only of a spacer with width `w`.
- */
-function layoutFromSpacer(w: number): L1p {
-  return [
-    {
-      region: [{ type: "Spacer", width: w }],
-      origin: { x: 0, y: 0 },
-      advance: { dx: w, dy: 0 }
     }
   ];
 }
@@ -361,11 +346,11 @@ function concatEvenly<A>(as: A[][]): A[] {
   }
 }
 
-class PebbleLayoutResult extends Render implements FragmentsInfo {
-  private layout: L1p;
+class PebbleLayoutResult<D> extends Render implements FragmentsInfo<D> {
+  private layout: L1p<D>;
   private uidToColor: Map<number, string>;
 
-  constructor(layout: L1p, uidToColor: Map<number, string>) {
+  constructor(layout: L1p<D>, uidToColor: Map<number, string>) {
     super();
     this.layout = layout;
     this.uidToColor = uidToColor;
@@ -384,8 +369,8 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
    * @returns A list of `Rect` `string` pairs, the `string`s
    * representing the color of each `Rect`.
    */
-  private rectsOfStack(s: Stack, includeBase?: boolean): [Rect, string][] {
-    if(s.type === "Spacer") {
+  private rectsOfStack<D>(s: Stack<D>, includeBase?: boolean): [Rect, string][] {
+    if(s.isSpacer) {
       return [];
     }
 
@@ -404,7 +389,7 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
     return out;
   }
 
-  private *allStacks(): IterableIterator<Stack> {
+  private *allStacks(): IterableIterator<Stack<D>> {
     for(const line of this.layout) {
       for(const stack of line.region) {
         yield stack;
@@ -412,7 +397,7 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
     }
   }
 
-  render(svg: Svg, sty: SVGStyle) {
+  render(svg: Svg, _sty: SVGStyle) {
     const that = this;
     const allRects = [...this.allStacks()].map(stk => that.rectsOfStack(stk));
     for(const [rect, fill] of concatEvenly(allRects)) {
@@ -427,7 +412,7 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
   boundingBox(): Rect | null {
     let bbox: Rect | null = null;
     for(const stack of this.allStacks()) {
-      if(stack.type === "Spacer") {
+      if(stack.isSpacer) {
         continue;
       }
 
@@ -444,20 +429,12 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
     return bbox;
   }
 
-  fragmentsInfo(): FragmentInfo[] {
-    let out: FragmentInfo[] = [];
+  fragmentsInfo(): FragmentInfo<D>[] {
+    let out: FragmentInfo<D>[] = [];
 
     for(let lineNo = 0; lineNo < this.layout.length; ++lineNo) {
       for(const stk of this.layout[lineNo].region) {
-        if(stk.type === "Spacer") {
-          continue;
-        }
-
-        out.push({
-          rect: stk.rect,
-          lineNo,
-          text: stk.text,
-        });
+        out.push({ ...stk, type: "Atom", lineNo });
       }
     }
 
@@ -465,35 +442,26 @@ class PebbleLayoutResult extends Render implements FragmentsInfo {
   }
 }
 
-export class PebbleLayoutSettings implements ViewSettings {
-  public translateWraps: boolean;
-  public idealLeading: number;
-
-  constructor(translateWraps: boolean, idealLeading: number) {
-    this.translateWraps = translateWraps;
-    this.idealLeading = idealLeading;
-  }
-
-  viewSettings(): SettingView[] {
-    return [
-      ToggleSettingView.new("translateWraps", this, "Translate wraps"),
-      NumberSettingView.new("idealLeading", this, "Ideal leading"),
-    ]
-  }
-
-  clone() {
-    return new PebbleLayoutSettings(this.translateWraps, this.idealLeading);
-  }
+export interface PebbleLayoutSettings extends LayoutSettings {
+  translateWraps: boolean;
 }
 
-export default class PebbleLayout implements alt.Layout {
+export const defaultPebbleLayoutSettings: PebbleLayoutSettings = {
+  idealLeading: 0,
+  translateWraps: true
+}
+
+export default class PebbleLayout<D> implements alt.Layout<D> {
   private settings: PebbleLayoutSettings;
 
-  constructor(settings: PebbleLayoutSettings) {
-    this.settings = settings;
+  constructor(settings: Partial<PebbleLayoutSettings>) {
+    this.settings = {
+      ...defaultPebbleLayoutSettings,
+      ...settings
+    }
   }
 
-  async layout(layoutTree: alt.LayoutTree<alt.WithMeasurements>): Promise<PebbleLayoutResult> {
+  async layout(layoutTree: alt.LayoutTree<D, alt.WithMeasurements>): Promise<PebbleLayoutResult<D>> {
     /**
      * Produce a unique ID.
      */
@@ -504,14 +472,15 @@ export default class PebbleLayout implements alt.Layout {
       };
     })();
 
-    const empty: rlt.LayoutTree<rlt.WithMeasurements> = { type: "Spacer", width: 0, text: "" };
-    const rlt: rlt.LayoutTree<rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
+    const empty: rlt.LayoutTree<D, rlt.WithMeasurements> = { type: "Atom", text: "", isSpacer: true, rect: { left: 0, right: 0, top: 0, bottom: 0 } };
+    const rlt: rlt.LayoutTree<D, rlt.WithMeasurements> = reassocLayoutTree(layoutTree, empty);
     const uidToColor: Map<number, string> = new Map();
 
-    const go = (root: rlt.LayoutTree<rlt.WithMeasurements>): L1p => {
+    const go = (root: rlt.LayoutTree<D, rlt.WithMeasurements>): L1p<D> => {
       switch(root.type) {
-        case "Atom": return layoutFromRect(root.rect, root.text);
-        case "Spacer": return layoutFromSpacer(root.width);
+        case "Atom": {
+          return layoutFromRect(root.rect, root.text, root.isSpacer, root.userData);
+        }
         case "JoinH": {
           const layout = go(root.lhs);
           extendH(layout, go(root.rhs));
@@ -538,7 +507,7 @@ export default class PebbleLayout implements alt.Layout {
 
     // Now, finalize the layout by vertically positioning each line.
     let lastLineOffset = 0;
-    const done: Region = [];
+    const done: Region<D> = [];
     for(const line of layout) {
       const currentLineOffset = leadingRegion(done, line.region);
       const effectiveLeading = currentLineOffset - lastLineOffset;

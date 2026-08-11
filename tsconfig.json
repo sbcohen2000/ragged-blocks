@@ -1,5 +1,5 @@
 {
-    "exclude": ["demo", "dist", "test", "bench", "ts-compat", "*jest*"],
+    "exclude": ["demo", "dist", "test", "bench", "*jest*"],
     "compilerOptions": {
         "skipLibCheck": true,
         "target": "esnext",

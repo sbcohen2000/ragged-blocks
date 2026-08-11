@@ -11,7 +11,6 @@ import { DEFAULT_BORDER_STYLE, DEFAULT_STYLE, Svg, Render, SVGStyle } from "./re
 export interface Ann {
   Newline: object;
   Atom: object;
-  Spacer: object;
   Node: object;
 }
 
@@ -19,43 +18,38 @@ export type Newline<X extends Ann = Ann> = {
   type: "Newline";
 } & X["Newline"];
 
-export type Atom<X extends Ann = Ann> = {
+export type Atom<D, X extends Ann = Ann> = {
   type: "Atom";
   text: string;
   pinId?: string;
+  userData?: D;
+  isSpacer: boolean;
 } & X["Atom"];
 
-export type Spacer<X extends Ann = Ann> = {
-  type: "Spacer";
-  text: string;
-} & X["Spacer"];
-
-export type Node<X extends Ann = Ann> = {
+export type Node<D, X extends Ann = Ann> = {
   type: "Node";
   padding: number;
   sty?: Partial<SVGStyle>;
-  children: LayoutTree<X>[];
+  userData?: D;
+  children: LayoutTree<D, X>[];
 } & X["Node"];
 
-export type LayoutTree<X extends Ann = Ann> = Newline<X> | Atom<X> | Spacer<X> | Node<X>;
+export type LayoutTree<D, X extends Ann = Ann> = Newline<X> | Atom<D, X> | Node<D, X>;
 
 export type WithStyleRefs<A = {}> = {
   Atom:    object;
-  Spacer:  object;
   Newline: object;
   Node:    { styleRef?: string };
 } & A;
 
 export type WithMeasurements<A = {}> = {
   Atom:    { rect: Rect };
-  Spacer:  { width: number };
   Newline: object;
   Node:    object;
 } & A;
 
 export type WithOutlines<A = {}> = {
   Atom:    object;
-  Spacer:  object;
   Newline: object;
   Node:    { outline: Polygon };
 } & A;
@@ -64,28 +58,31 @@ export type WithOutlines<A = {}> = {
  * An interface implemented by types which can produce a `Render`able
  * object given a `LayoutTree<WithMeasurements>`.
  */
-export interface Layout {
-  layout(layoutTree: LayoutTree<WithMeasurements>): Promise<Render & FragmentsInfo>;
+export interface Layout<D> {
+  layout(layoutTree: LayoutTree<D, WithMeasurements>): Promise<Render & FragmentsInfo<D>>;
 }
 
 /**
  * Information about a positioned fragment.
  */
-export type FragmentInfo = {
+export type FragmentInfo<D> = {
+  type: "Atom";
   text: string;
   rect: Rect;
   lineNo: number;
+  userData?: D;
+  isSpacer: boolean;
 };
 
 /**
  * Layout algorithms which implement this interface can provide
  * information about their laid-out fragments.
  */
-export interface FragmentsInfo {
+export interface FragmentsInfo<D> {
   /**
    * Yield the laid-out fragments, in order.
    */
-  fragmentsInfo(): FragmentInfo[];
+  fragmentsInfo(): FragmentInfo<D>[];
 }
 
 /**
@@ -94,7 +91,7 @@ export interface FragmentsInfo {
  * @param fragment The fragment whose position to find.
  * @returns A `Point` representing the fragment's position.
  */
-export function fragmentPosition(fragment: FragmentInfo): Point {
+export function fragmentPosition<D>(fragment: FragmentInfo<D>): Point {
   //return centerPoint(fragment.rect);
   return { x: fragment.rect.left, y: fragment.rect.top };
 }
@@ -109,21 +106,17 @@ export function fragmentPosition(fragment: FragmentInfo): Point {
  * @returns A new layout tree, identical to the input, except that
  * each leaf has been annotated with its size according to `measure`.
  */
-export function measureLayoutTree(tree: LayoutTree, measure: (text: string) => Rect): LayoutTree<WithMeasurements> {
+export function measureLayoutTree<D>(
+  tree: LayoutTree<D>,
+  measure: (text: string, userData: D | undefined) => Rect
+): LayoutTree<D, WithMeasurements> {
   switch(tree.type) {
     case "Newline": return tree;
     case "Atom": {
-      const rect = measure(tree.text);
+      const rect = measure(tree.text, tree.userData);
       return {
         ...tree,
         rect
-      }
-    };
-    case "Spacer": {
-      const w = width(measure(tree.text));
-      return {
-        ...tree,
-        width: w
       }
     };
     case "Node": {
@@ -141,7 +134,7 @@ export function measureLayoutTree(tree: LayoutTree, measure: (text: string) => R
  *
  * @param tree The input layout tree to modify.
  */
-export function randomizeFillColors(tree: LayoutTree) {
+export function randomizeFillColors<D>(tree: LayoutTree<D>) {
   const COLORS: string[] = [
     "lightblue",
     "lightcoral",
@@ -155,11 +148,10 @@ export function randomizeFillColors(tree: LayoutTree) {
   ];
   let colorCounter = 0;
 
-  const go = (root: LayoutTree) => {
+  const go = (root: LayoutTree<D>) => {
     switch(root.type) {
       case "Newline": break;
       case "Atom": break;
-      case "Spacer": break;
       case "Node": {
         if(!root.sty) {
           root.sty = { ...DEFAULT_STYLE };
@@ -180,12 +172,11 @@ export function randomizeFillColors(tree: LayoutTree) {
  *
  * @param tree The input tree to modify.
  */
-export function removePadding<A extends Ann>(tree: LayoutTree<A>) {
-  const go = (root: LayoutTree<A>) => {
+export function removePadding<D, A extends Ann>(tree: LayoutTree<D, A>) {
+  const go = (root: LayoutTree<D, A>) => {
     switch(root.type) {
       case "Newline": break;
       case "Atom": break;
-      case "Spacer": break;
       case "Node": {
         root.padding = 0;
         root.children.forEach(go);
@@ -198,46 +189,19 @@ export function removePadding<A extends Ann>(tree: LayoutTree<A>) {
 
 export type WithStyles<A = {}> = {
   Atom:    { sty: Partial<SVGStyle> };
-  Spacer:  object;
   Newline: object;
   Node:    object;
 } & A;
-
-/**
- * Yield each `Atom` in a `LayoutTree` in document order. Each `Atom`
- * is also annotated with the styles applied to the nearest `Node`.
- *
- * @param tree The tree to iterate over.
- * @returns An iterator over `tree`'s `Atom`s.
- */
-export function *eachAtomWithInheritedStyles<A extends Ann>(tree: LayoutTree<A>): IterableIterator<Atom<WithStyles<A>>> {
-  const stack: LayoutTree<A>[] = [tree];
-  const styStack: Partial<SVGStyle>[] = [{}];
-
-  while(stack.length > 0) {
-    const top = stack.pop()!;
-    const sty = styStack.pop()!;
-
-    if(top.type === "Node") {
-      for(let i = top.children.length - 1; i >= 0; --i) {
-        stack.push(top.children[i]);
-        styStack.push({ ...sty, ...top.sty });
-      }
-    } else if(top.type === "Atom") {
-      yield { ...top, sty };
-    }
-  }
-}
 
 /**
  * Given a type which implements `FragmentsInfo`, produce a
  * `Render`able object which renders the positions of each fragment
  * with a white box with black stroke.
  */
-export class FragmentBoundingBoxesRendering extends Render {
-  private layoutResult: FragmentsInfo;
+export class FragmentBoundingBoxesRendering<D> extends Render {
+  private layoutResult: FragmentsInfo<D>;
 
-  constructor(layoutResult: FragmentsInfo) {
+  constructor(layoutResult: FragmentsInfo<D>) {
     super();
     this.layoutResult = layoutResult;
   }
